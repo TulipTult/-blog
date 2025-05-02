@@ -566,3 +566,100 @@ body.aero-mode .secret-signup-note {
 body.aero-mode .warning {
   color: #d32f2f;
 }
+
+/* Drag and drop styles */
+.image-upload-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.drop-area {
+  border: 2px dashed #00ff99;
+  border-radius: 5px;
+  padding: 2rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.drop-area:hover, .drop-area.highlight {
+  background-color: rgba(0, 255, 153, 0.1);
+  border-color: #ff33cc;
+}
+
+.drop-area p {
+  color: #00ccff;
+  margin: 0;
+}
+
+.file-input {
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+}
+
+.image-preview-container {
+  position: relative;
+  margin-top: 0.5rem;
+  border: 2px solid #00ff99;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.image-preview-container img {
+  max-width: 100%;
+  max-height: 300px;
+  display: block;
+}
+
+.remove-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.remove-btn:hover {
+  background-color: rgba(255, 0, 0, 0.8);
+}
+
+/* Aero mode overrides for drag and drop */
+body.aero-mode .drop-area {
+  background-color: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 120, 215, 0.5);
+}
+
+body.aero-mode .drop-area:hover, 
+body.aero-mode .drop-area.highlight {
+  background-color: rgba(0, 120, 215, 0.1);
+  border-color: #0078d7;
+}
+
+body.aero-mode .drop-area p {
+  color: #0078d7;
+}
+
+body.aero-mode .image-preview-container {
+  border-color: rgba(0, 120, 215, 0.5);
+}
+
+body.aero-mode .remove-btn {
+  background-color: rgba(0, 120, 215, 0.7);
+}
+
+body.aero-mode .remove-btn:hover {
+  background-color: rgba(209, 52, 56, 0.8);
+}
