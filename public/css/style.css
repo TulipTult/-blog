@@ -1,0 +1,568 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Arial", Helvetica, sans-serif;
+}
+
+body {
+  background-color: #101010;
+  color: #00ff99;
+  line-height: 1.6;
+  background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAIAAACRXR/mAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAIGNIUk0AAHolAACAgwAA+f8AAIDpAAB1MAAA6mAAADqYAAAXb5JfxUYAAABnSURBVHja7M5BDQAwDASh+ze/XeCeCgN4Ox0jydY5+/Y/ERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERERE9BD8Y8AALW6TXX2+kxwAAAAASUVORK5CYII=");
+  background-attachment: fixed;
+}
+
+header {
+  background-color: #cc00cc;
+  color: #000000;
+  padding: 0.5rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #00ccff;
+}
+
+header h1 {
+  font-size: 2rem;
+  font-weight: bold;
+  letter-spacing: -1px;
+  text-transform: uppercase;
+  background: linear-gradient(45deg, #ff00ff, #00ffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 5px rgba(255, 0, 255, 0.5);
+}
+
+.header-links {
+  display: flex;
+  gap: 10px;
+}
+
+.create-button, .back-button, .submit-button {
+  background-color: #00ccff;
+  color: #000000;
+  padding: 0.5rem 1rem;
+  border: 1px outset #00ccff;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.back-button {
+  background-color: #ffcc00;
+  border: 1px outset #ffcc00;
+}
+
+.create-button:hover, .back-button:hover, .submit-button:hover {
+  background-color: #ff33cc;
+  border: 1px inset #ff33cc;
+}
+
+.marquee-container {
+  background-color: #000;
+  color: #00ffff;
+  padding: 8px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border-bottom: 1px solid #00ffff;
+}
+
+.bottom-marquee {
+  border-top: 1px solid #00ffff;
+  border-bottom: none;
+}
+
+.marquee-content {
+  display: inline-block;
+  animation: marquee 20s linear infinite;
+  padding-left: 100%; /* Start completely off-screen */
+  white-space: nowrap;
+}
+
+.reverse {
+  animation-direction: reverse;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+.marquee-content span {
+  padding-right: 50px;
+  font-weight: bold;
+}
+
+main {
+  max-width: 900px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+h2 {
+  color: #ff33cc;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px dashed #ff33cc;
+  padding-bottom: 0.5rem;
+}
+
+.categories-container {
+  padding-bottom: 1rem;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  margin-top: 1rem;
+}
+
+.category-card {
+  background-color: rgba(10, 10, 20, 0.8);
+  padding: 1rem;
+  border: 1px solid #00ccff;
+  transition: all 0.2s ease;
+}
+
+.category-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0 15px rgba(0, 204, 255, 0.3);
+}
+
+.category-card h3 {
+  color: #ffcc00;
+  margin-bottom: 0.5rem;
+}
+
+.category-card h3 a {
+  color: #ffcc00;
+  text-decoration: none;
+}
+
+.category-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #00ccff;
+  margin-bottom: 0.5rem;
+}
+
+.category-desc {
+  font-size: 0.9rem;
+  color: #cccccc;
+}
+
+.category-header {
+  background-color: rgba(10, 10, 20, 0.8);
+  padding: 1rem;
+  margin: 1rem auto;
+  max-width: 900px;
+  border: 1px solid #00ccff;
+}
+
+.category-header h2 {
+  margin-bottom: 0.5rem;
+  border-bottom: none;
+}
+
+.posts-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.post {
+  background-color: rgba(10, 10, 20, 0.8);
+  border: 1px solid #00ccff;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.post-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #00ff99;
+}
+
+.post-author {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #00ccff;
+}
+
+.username {
+  font-weight: bold;
+  color: #00ccff;
+}
+
+.date {
+  color: #ff33cc;
+  font-size: 0.85rem;
+}
+
+.post h3 {
+  margin-bottom: 1rem;
+  color: #ffcc00;
+  text-transform: uppercase;
+}
+
+.post-content {
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+  color: #ffffff;
+}
+
+.post-image img {
+  max-width: 100%;
+  border: 1px solid #ff33cc;
+  margin-top: 1rem;
+}
+
+.create-post-container {
+  max-width: 700px;
+}
+
+.create-post-container form {
+  background-color: rgba(10, 10, 20, 0.8);
+  padding: 1.5rem;
+  border: 1px solid #00ccff;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: bold;
+  color: #00ccff;
+  text-transform: uppercase;
+}
+
+.form-group input,
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #ffffff;
+  border: 1px solid #00ff99;
+  font-family: "Arial", Helvetica, sans-serif;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  outline: none;
+  border: 1px solid #ff33cc;
+}
+
+.error {
+  background-color: rgba(50, 0, 0, 0.8);
+  color: #ff5555;
+  padding: 1rem;
+  border: 1px solid #ff0000;
+  margin-bottom: 1rem;
+}
+
+.no-posts, .no-categories {
+  text-align: center;
+  padding: 2rem;
+  background-color: rgba(10, 10, 20, 0.8);
+  border: 1px solid #00ccff;
+  color: #ff33cc;
+  font-size: 1.2rem;
+}
+
+/* Delete buttons and forms styling */
+.delete-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  margin-top: 5px;
+}
+
+.delete-btn:hover {
+  background-color: #d32f2f;
+}
+
+.post-actions, .category-actions {
+  margin-top: 10px;
+}
+
+.post-actions form, .category-actions form {
+  display: flex;
+  gap: 10px;
+  margin-top: 5px;
+  align-items: center;
+}
+
+.post-actions input, .category-actions input {
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+/* Delete controls styling */
+.delete-control {
+  display: none; /* Hidden by default */
+  margin-top: 10px;
+}
+
+/* Key sequence message styling */
+.key-sequence-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 1000;
+  animation: fadeInOut 2s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+footer {
+  text-align: center;
+  padding: 0.5rem;
+  background-color: #cc00cc;
+  color: #000000;
+  margin-top: 1rem;
+  border-top: 1px solid #00ccff;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+/* Profile page styles */
+.profile-container {
+  max-width: 800px;
+  margin: 1rem auto;
+  padding: 0 1rem;
+}
+
+.profile-header {
+  background-color: rgba(10, 10, 20, 0.8);
+  padding: 1.5rem;
+  border: 1px solid #00ccff;
+  border-radius: 5px;
+  margin-bottom: 1.5rem;
+}
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border: 2px solid #ff33cc;
+  border-radius: 50%;
+}
+
+.user-role {
+  color: #00ccff;
+  font-style: italic;
+  margin-top: 0.3rem;
+}
+
+.user-bio {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #ff33cc;
+}
+
+.user-bio h3 {
+  color: #ffcc00;
+  margin-bottom: 0.5rem;
+}
+
+.user-bio p {
+  color: #ffffff;
+  white-space: pre-wrap;
+}
+
+.user-posts-section {
+  background-color: rgba(10, 10, 20, 0.8);
+  padding: 1.5rem;
+  border: 1px solid #00ccff;
+  border-radius: 5px;
+}
+
+.user-posts-section h3 {
+  color: #ffcc00;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #00ccff;
+}
+
+.posts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.posts-list .post {
+  padding: 1rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid #00ccff;
+  margin-bottom: 0;
+}
+
+.post-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.post-category {
+  font-size: 0.8rem;
+  color: #00ccff;
+}
+
+.post-content-preview {
+  color: #cccccc;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+/* Aero mode styling for profile */
+body.aero-mode .profile-header,
+body.aero-mode .user-posts-section {
+  background-color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-color: rgba(0, 120, 215, 0.3);
+}
+
+body.aero-mode .user-role {
+  color: #0078d7;
+}
+
+body.aero-mode .user-bio h3,
+body.aero-mode .user-posts-section h3 {
+  color: #0078d7;
+}
+
+body.aero-mode .user-bio p,
+body.aero-mode .post-content-preview {
+  color: #333;
+}
+
+body.aero-mode .posts-list .post {
+  border-color: rgba(0, 120, 215, 0.3);
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+body.aero-mode .user-bio {
+  border-color: rgba(0, 120, 215, 0.3);
+}
+
+body.aero-mode .user-posts-section h3 {
+  border-color: rgba(0, 120, 215, 0.3);
+}
+
+body.aero-mode .post-category {
+  color: #0078d7;
+}
+
+/* Signup page styles */
+.secret-signup-note {
+  color: #ff33cc;
+  font-style: italic;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.form-help {
+  font-size: 0.8rem;
+  color: #00ccff;
+  margin-top: 0.3rem;
+}
+
+.success-message {
+  background-color: rgba(0, 255, 153, 0.1);
+  border: 1px solid #00ff99;
+  padding: 1.5rem;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.success-message h3 {
+  color: #00ff99;
+  margin-bottom: 1rem;
+}
+
+.success-message strong {
+  color: #ffcc00;
+  font-size: 1.2rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 0.3rem 0.6rem;
+  border-radius: 3px;
+  display: inline-block;
+  margin: 0.5rem 0;
+}
+
+.warning {
+  color: #ff5555;
+  font-weight: bold;
+  margin: 1rem 0;
+}
+
+.success-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+/* Aero mode overrides */
+body.aero-mode .success-message {
+  background-color: rgba(0, 120, 215, 0.1);
+  border-color: rgba(0, 120, 215, 0.3);
+}
+
+body.aero-mode .success-message h3 {
+  color: #0078d7;
+}
+
+body.aero-mode .success-message strong {
+  color: #0078d7;
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+body.aero-mode .form-help {
+  color: #0078d7;
+}
+
+body.aero-mode .secret-signup-note {
+  color: #0078d7;
+}
+
+body.aero-mode .warning {
+  color: #d32f2f;
+}

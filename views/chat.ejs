@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Chat - TulipParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/aero.css">
+  <link rel="stylesheet" href="/css/chat.css">
+</head>
+<body>
+  <header>
+    <h1>TulipParty Chat</h1>
+    <div class="header-links">
+      <a href="/" class="back-button">Home</a>
+    </div>
+  </header>
+
+  <main class="chat-container">
+    <!-- Login Form (shown initially) -->
+    <div id="login-form" class="auth-form">
+      <h2>Enter Live Chat</h2>
+      <div class="form-group">
+        <label for="postKey">Your Post Key</label>
+        <input type="password" id="postKey" name="postKey" required>
+      </div>
+      <button id="login-btn" class="submit-button">Enter Chat</button>
+      <p class="error-message" id="login-error"></p>
+    </div>
+
+    <!-- Chat Interface (hidden initially) -->
+    <div id="chat-interface" style="display: none;">
+      <div class="chat-header">
+        <h2>Live Chat</h2>
+        <div class="user-info">
+          <img id="user-avatar" class="avatar" src="" alt="Your avatar">
+          <span id="username">User</span>
+        </div>
+      </div>
+
+      <div class="chat-main">
+        <div class="chat-sidebar">
+          <h3>Online Users</h3>
+          <ul id="users-list"></ul>
+        </div>
+        
+        <div class="chat-messages-container">
+          <div id="messages" class="chat-messages"></div>
+          
+          <div class="message-input">
+            <input type="text" id="message-input" placeholder="Type a message...">
+            <button id="send-btn" class="submit-button">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Y2K Lives Forever</p>
+  </footer>
+  
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/chat.js"></script>
+  <script src="/js/aeroEasterEgg.js"></script>
+  <script src="/js/signupKeySequence.js"></script>
+</body>
+</html>

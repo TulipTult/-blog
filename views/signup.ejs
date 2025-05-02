@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account - TulipParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/aero.css">
+</head>
+<body>
+  <header>
+    <h1>TulipParty</h1>
+    <div class="header-links">
+      <a href="/" class="back-button">Home</a>
+    </div>
+  </header>
+  
+  <main class="create-post-container">
+    <h2>Create Your Account</h2>
+    <p class="secret-signup-note">You've discovered the secret signup page!</p>
+    
+    <% if (locals.error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+    
+    <% if (locals.success) { %>
+      <div class="success-message">
+        <h3>Account Created Successfully!</h3>
+        <p>Your post key is: <strong><%= locals.postKey %></strong></p>
+        <p class="warning">⚠️ IMPORTANT: Please save this post key! You'll need it to create posts and access your account. It cannot be recovered if lost.</p>
+        <div class="success-actions">
+          <a href="/" class="submit-button">Go to Homepage</a>
+          <a href="/profile/<%= locals.username %>" class="submit-button">View Your Profile</a>
+        </div>
+      </div>
+    <% } else { %>
+      <form action="/signup" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+          <label for="username">Username (Required)</label>
+          <input type="text" id="username" name="username" required value="<%= locals.username || '' %>">
+        </div>
+        
+        <div class="form-group">
+          <label for="role">Role</label>
+          <input type="text" id="role" name="role" placeholder="e.g., Artist, Coder, Meme Lord" value="<%= locals.role || '' %>">
+        </div>
+        
+        <div class="form-group">
+          <label for="bio">Bio</label>
+          <textarea id="bio" name="bio" rows="4" placeholder="Tell us about yourself"><%= locals.bio || '' %></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label for="profilePic">Profile Picture (Optional)</label>
+          <input type="file" id="profilePic" name="profilePic" accept="image/*">
+        </div>
+        
+        <div class="form-group">
+          <label for="customPostKey">Custom Post Key (Optional)</label>
+          <input type="text" id="customPostKey" name="customPostKey" placeholder="Leave blank to auto-generate">
+          <p class="form-help">This is your unique identifier. If left blank, a secure random key will be generated.</p>
+        </div>
+        
+        <button type="submit" class="submit-button">Create Account</button>
+      </form>
+    <% } %>
+  </main>
+  
+  <footer>
+    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Y2K Lives Forever</p>
+  </footer>
+  <script src="/js/aeroEasterEgg.js"></script>
+</body>
+</html>
