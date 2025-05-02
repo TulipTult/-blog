@@ -545,27 +545,50 @@ app.post('/create', upload.single('image'), (req, res) => {
   const date = moment().format('YYYY-MM-DD HH:mm:ss');
   const category = categoryId || 1;
 
-  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
-    if (err || !user) {
-      return db.all(`SELECT * FROM categories ORDER BY name`, [], (err, categories) => {
-        return res.render('create-post', { 
-          error: 'Invalid post key',
-          title,
-          content,
-          categories
-        });
-      });
-    }
-
+  // Modified section: Check for admin post keys as well
+  const validKeys = ['pibble_power3', '1pibble'];
+  if (validKeys.includes(postKey)) {
+    // Directly allow these admin keys to create posts
     db.run(`INSERT INTO posts (title, content, user_key, category_id, date, image_path) 
             VALUES (?, ?, ?, ?, ?, ?)`, 
             [title, content, postKey, category, date, imagePath], function(err) {
       if (err) {
-        return console.error(err.message);
+        console.error(err.message);
+        return db.all(`SELECT * FROM categories ORDER BY name`, [], (err, categories) => {
+          return res.render('create-post', { 
+            error: `Database error: ${err.message}`,
+            title,
+            content,
+            categories
+          });
+        });
       }
-      res.redirect('/category/' + category);
+      return res.redirect('/category/' + category);
     });
-  });
+  } else {
+    // Check regular users via the database
+    db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+      if (err || !user) {
+        return db.all(`SELECT * FROM categories ORDER BY name`, [], (err, categories) => {
+          return res.render('create-post', { 
+            error: 'Invalid post key',
+            title,
+            content,
+            categories
+          });
+        });
+      }
+
+      db.run(`INSERT INTO posts (title, content, user_key, category_id, date, image_path) 
+              VALUES (?, ?, ?, ?, ?, ?)`, 
+              [title, content, postKey, category, date, imagePath], function(err) {
+        if (err) {
+          return console.error(err.message);
+        }
+        res.redirect('/category/' + category);
+      });
+    });
+  }
 });
 
 app.get('/create-category', (req, res) => {
@@ -576,24 +599,44 @@ app.post('/create-category', (req, res) => {
   const { name, description, postKey } = req.body;
   const date = moment().format('YYYY-MM-DD HH:mm:ss');
 
-  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
-    if (err || !user) {
-      return res.render('create-category', { 
-        error: 'Invalid post key',
-        name,
-        description
-      });
-    }
-
+  // Modified section: Check for admin post keys as well
+  const validKeys = ['pibble_power3', '1pibble'];
+  if (validKeys.includes(postKey)) {
+    // Directly allow these admin keys to create categories
     db.run(`INSERT INTO categories (name, description, created_by, created_at) 
             VALUES (?, ?, ?, ?)`, 
             [name, description, postKey, date], function(err) {
       if (err) {
-        return console.error(err.message);
+        console.error(err.message);
+        return res.render('create-category', { 
+          error: `Database error: ${err.message}`,
+          name,
+          description
+        });
       }
-      res.redirect('/');
+      return res.redirect('/');
     });
-  });
+  } else {
+    // Check regular users via the database
+    db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+      if (err || !user) {
+        return res.render('create-category', { 
+          error: 'Invalid post key',
+          name,
+          description
+        });
+      }
+
+      db.run(`INSERT INTO categories (name, description, created_by, created_at) 
+              VALUES (?, ?, ?, ?)`, 
+              [name, description, postKey, date], function(err) {
+        if (err) {
+          return console.error(err.message);
+        }
+        res.redirect('/');
+      });
+    });
+  }
 });
 
 app.get('/profile/:username', (req, res) => {
