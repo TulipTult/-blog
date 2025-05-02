@@ -595,44 +595,84 @@ app.get('/create-category', (req, res) => {
   res.render('create-category');
 });
 
-app.post('/create-category', (req, res) => {
+app.post('/create-category', upload.single('image'), (req, res) => {
   const { name, description, postKey } = req.body;
   const date = moment().format('YYYY-MM-DD HH:mm:ss');
 
-  // Modified section: Check for admin post keys as well
+  // Log for debugging
+  console.log(`Attempting to create category with key: ${postKey}`);
+  
+  // Check for empty values
+  if (!name || name.trim() === '') {
+    return res.render('create-category', { 
+      error: 'Category name is required',
+      name,
+      description
+    });
+  }
+
+  // Special admin keys that always work
   const validKeys = ['pibble_power3', '1pibble'];
+  
+  // Check if the key is one of our admin keys
   if (validKeys.includes(postKey)) {
-    // Directly allow these admin keys to create categories
+    console.log(`Admin key recognized: ${postKey}`);
+    
+    // Insert the new category
     db.run(`INSERT INTO categories (name, description, created_by, created_at) 
             VALUES (?, ?, ?, ?)`, 
             [name, description, postKey, date], function(err) {
       if (err) {
-        console.error(err.message);
+        console.error(`Database error during category creation: ${err.message}`);
         return res.render('create-category', { 
           error: `Database error: ${err.message}`,
           name,
           description
         });
       }
+      
+      console.log(`Category created successfully with admin key: ${postKey}`);
       return res.redirect('/');
     });
   } else {
-    // Check regular users via the database
+    // For non-admin keys, check the database
+    console.log(`Checking database for user with key: ${postKey}`);
+    
     db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
-      if (err || !user) {
+      if (err) {
+        console.error(`Database error during user lookup: ${err.message}`);
         return res.render('create-category', { 
-          error: 'Invalid post key',
+          error: `Database error during authentication: ${err.message}`,
           name,
           description
         });
       }
-
+      
+      if (!user) {
+        console.log(`No user found with key: ${postKey}`);
+        return res.render('create-category', { 
+          error: 'Invalid post key - User not found',
+          name,
+          description
+        });
+      }
+      
+      console.log(`User found: ${user.username}, creating category`);
+      
+      // Create the category with the validated user
       db.run(`INSERT INTO categories (name, description, created_by, created_at) 
               VALUES (?, ?, ?, ?)`, 
               [name, description, postKey, date], function(err) {
         if (err) {
-          return console.error(err.message);
+          console.error(`Database error during category creation: ${err.message}`);
+          return res.render('create-category', { 
+            error: `Error creating category: ${err.message}`,
+            name,
+            description
+          });
         }
+        
+        console.log(`Category created successfully by user: ${user.username}`);
         res.redirect('/');
       });
     });
@@ -702,6 +742,10 @@ app.post('/delete-category/:id', (req, res) => {
     return res.status(403).send('Cannot delete the default category');
   }
 
+  // Special admin keys can delete any category
+  const validAdminKeys = ['pibble_power3', '1pibble'];
+  const isAdmin = validAdminKeys.includes(postKey);
+
   db.serialize(() => {
     db.run('BEGIN TRANSACTION');
     db.get("SELECT * FROM categories WHERE id = ?", [categoryId], (err, category) => {
@@ -709,7 +753,9 @@ app.post('/delete-category/:id', (req, res) => {
         db.run('ROLLBACK');
         return res.status(404).send('Category not found');
       }
-      if (category.created_by !== postKey) {
+      
+      // Admin can delete any category, regular users only their own
+      if (!isAdmin && category.created_by !== postKey) {
         db.run('ROLLBACK');
         return res.status(403).send('Unauthorized: Post key does not match');
       }
