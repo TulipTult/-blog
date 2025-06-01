@@ -12,6 +12,9 @@ const socketIO = require('socket.io');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Import routers
+const profileRouter = require('./views/profile');
+
 // Create HTTP server for Socket.IO
 const server = http.createServer(app);
 const io = socketIO(server);
@@ -22,7 +25,11 @@ app.set('views', path.join(__dirname, 'views'));
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json()); // Add this line to parse JSON requests
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Use routers
+app.use(profileRouter);
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -131,6 +138,20 @@ const db = new sqlite3.Database(dbPath, (err) => {
           checkAndUpdateTulip();
         });
       }
+      
+      // Add profile_customization column if it doesn't exist
+      const hasCustomizationColumn = columns.some(col => col.name === 'profile_customization');
+      if (!hasCustomizationColumn) {
+        pendingAlters++;
+        db.run("ALTER TABLE users ADD COLUMN profile_customization TEXT", (err) => {
+          if (err) {
+            console.error("Error adding profile_customization column:", err.message);
+          } else {
+            console.log("Profile customization column added successfully");
+          }
+          checkAndUpdateTulip();
+        });
+      }
     }
   });
   
@@ -142,6 +163,66 @@ const db = new sqlite3.Database(dbPath, (err) => {
     created_by TEXT,
     created_at TEXT,
     FOREIGN KEY (created_by) REFERENCES users (post_key)
+  )`);
+  
+  // Create likes table
+  db.run(`CREATE TABLE IF NOT EXISTS likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_key) REFERENCES users (post_key),
+    UNIQUE(post_id, user_key)
+  )`);
+
+  // Create favorites table
+  db.run(`CREATE TABLE IF NOT EXISTS favorites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    post_id INTEGER NOT NULL,
+    user_key TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_key) REFERENCES users (post_key),
+    UNIQUE(post_id, user_key)
+  )`);
+
+  // Create reposts table
+  db.run(`CREATE TABLE IF NOT EXISTS reposts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    original_post_id INTEGER NOT NULL,
+    user_key TEXT NOT NULL,
+    comment TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (original_post_id) REFERENCES posts (id) ON DELETE CASCADE,
+    FOREIGN KEY (user_key) REFERENCES users (post_key)
+  )`);
+
+  // Create friends table
+  db.run(`CREATE TABLE IF NOT EXISTS friends (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_key_1 TEXT NOT NULL,
+    user_key_2 TEXT NOT NULL,
+    status TEXT DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_key_1) REFERENCES users (post_key),
+    FOREIGN KEY (user_key_2) REFERENCES users (post_key),
+    UNIQUE(user_key_1, user_key_2)
+  )`);
+
+  // Create friend_messages table
+  db.run(`CREATE TABLE IF NOT EXISTS friend_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender_key TEXT NOT NULL,
+    receiver_key TEXT NOT NULL,
+    message TEXT NOT NULL,
+    image_path TEXT,
+    gif_url TEXT,
+    created_at TEXT NOT NULL,
+    read_at TEXT,
+    FOREIGN KEY (sender_key) REFERENCES users (post_key),
+    FOREIGN KEY (receiver_key) REFERENCES users (post_key)
   )`);
   
   // Update strategy for posts table
@@ -292,16 +373,9 @@ io.on('connection', (socket) => {
   socket.on('authenticate', (data) => {
     const { postKey } = data;
 
-    // Validate post key against database
-    db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
-      if (err) {
-        console.error("Database error during chat authentication:", err.message);
-        socket.emit('auth_response', { success: false, message: 'Authentication error' });
-        return;
-      }
-
+    validatePostKey(postKey, (user) => {
       if (!user) {
-        socket.emit('auth_response', { success: false, message: 'Invalid post key' });
+        socket.emit('auth_response', { success: false, message: 'Invalid post key. Please check for typos and try again.' });
         return;
       }
 
@@ -345,7 +419,79 @@ io.on('connection', (socket) => {
       timestamp: new Date().toISOString()
     };
 
-    io.to('main').emit('new_message', messageData);
+    // Save message to database and emit to all clients
+    const date = moment().format('YYYY-MM-DD HH:mm:ss');
+    
+    // Store chat message in db (add this table if needed)
+    db.run(`INSERT INTO chat_messages (user_key, message, created_at) 
+            VALUES (?, ?, ?)`, 
+            [socket.user.post_key, data.message, date], function(err) {
+      if (err) {
+        console.error("Error saving chat message:", err);
+        // Still emit the message even if db save fails
+      }
+      
+      // Only emit after database operation completes
+      // This prevents duplicate messages
+      io.to('main').emit('new_message', messageData);
+    });
+    
+    // Remove the immediate emit that was causing duplicates
+    // io.to('main').emit('new_message', messageData);
+  });
+
+  // Add private chat handlers
+  socket.on('join_private_chat', function(data) {
+    const { userKey, friendKey } = data;
+    
+    // Create a unique room name for this chat (always in the same order to ensure both users join the same room)
+    const room1 = `chat_${userKey}_${friendKey}`;
+    const room2 = `chat_${friendKey}_${userKey}`;
+    
+    socket.join(room1);
+    socket.join(room2);
+  });
+
+  socket.on('send_private_message', function(data) {
+    const { sender, receiver, message, gif, localMsgId } = data;
+    const timestamp = moment().format('YYYY-MM-DD HH:mm:ss');
+    
+    // Save the message to database
+    db.run(`INSERT INTO friend_messages 
+            (sender_key, receiver_key, message, gif_url, created_at) 
+            VALUES (?, ?, ?, ?, ?)`, 
+            [sender, receiver, message || '', gif || null, timestamp], function(err) {
+      
+      if (err) {
+        console.error("Error saving message:", err);
+        return;
+      }
+      
+      const messageId = this.lastID;
+      
+      // Send message to both users
+      io.to(`chat_${sender}_${receiver}`).emit('private_message', {
+        id: messageId,
+        sender,
+        receiver,
+        message,
+        gif,
+        timestamp,
+        localMsgId // Pass through the original message ID
+      });
+    });
+  });
+
+  // Socket.IO event for validating keys
+  socket.on('validate_key', function(data) {
+    const { postKey } = data;
+    
+    validatePostKey(postKey, (user) => {
+      socket.emit('key_validated', {
+        valid: !!user,
+        postKey: user ? user.post_key : null
+      });
+    });
   });
 
   socket.on('disconnect', () => {
@@ -545,15 +691,23 @@ app.post('/create', upload.single('image'), (req, res) => {
   const date = moment().format('YYYY-MM-DD HH:mm:ss');
   const category = categoryId || 1;
 
-  // Modified section: Check for admin post keys as well
-  const validKeys = ['pibble_power3', '1pibble'];
-  if (validKeys.includes(postKey)) {
-    // Directly allow these admin keys to create posts
+  validatePostKey(postKey, (user) => {
+    if (!user) {
+      return db.all(`SELECT * FROM categories ORDER BY name`, [], (err, categories) => {
+        return res.render('create-post', { 
+          error: 'Invalid post key. Please check for typos and try again.',
+          title,
+          content,
+          categories
+        });
+      });
+    }
+
     db.run(`INSERT INTO posts (title, content, user_key, category_id, date, image_path) 
             VALUES (?, ?, ?, ?, ?, ?)`, 
-            [title, content, postKey, category, date, imagePath], function(err) {
+            [title, content, user.post_key, category, date, imagePath], function(err) {
       if (err) {
-        console.error(err.message);
+        console.error('Database error when creating post:', err.message);
         return db.all(`SELECT * FROM categories ORDER BY name`, [], (err, categories) => {
           return res.render('create-post', { 
             error: `Database error: ${err.message}`,
@@ -565,30 +719,7 @@ app.post('/create', upload.single('image'), (req, res) => {
       }
       return res.redirect('/category/' + category);
     });
-  } else {
-    // Check regular users via the database
-    db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
-      if (err || !user) {
-        return db.all(`SELECT * FROM categories ORDER BY name`, [], (err, categories) => {
-          return res.render('create-post', { 
-            error: 'Invalid post key',
-            title,
-            content,
-            categories
-          });
-        });
-      }
-
-      db.run(`INSERT INTO posts (title, content, user_key, category_id, date, image_path) 
-              VALUES (?, ?, ?, ?, ?, ?)`, 
-              [title, content, postKey, category, date, imagePath], function(err) {
-        if (err) {
-          return console.error(err.message);
-        }
-        res.redirect('/category/' + category);
-      });
-    });
-  }
+  });
 });
 
 app.get('/create-category', (req, res) => {
@@ -782,6 +913,536 @@ app.post('/delete-category/:id', (req, res) => {
         });
       });
     });
+  });
+});
+
+// Add routes for social features
+// Like a post
+app.post('/like-post/:id', (req, res) => {
+  const postId = req.params.id;
+  const { postKey } = req.body;
+  
+  validatePostKey(postKey, (user) => {
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid post key. Please check for typos and try again.' });
+    }
+    
+    const date = moment().format('YYYY-MM-DD HH:mm:ss');
+    
+    // Check if already liked
+    db.get("SELECT id FROM likes WHERE post_id = ? AND user_key = ?", [postId, user.post_key], (err, like) => {
+      if (like) {
+        // Unlike if already liked
+        db.run("DELETE FROM likes WHERE id = ?", [like.id], function(err) {
+          if (err) {
+            return res.status(500).json({ success: false, message: 'Failed to unlike post' });
+          }
+          return res.json({ success: true, action: 'unliked' });
+        });
+      } else {
+        // Like the post
+        db.run("INSERT INTO likes (post_id, user_key, created_at) VALUES (?, ?, ?)", 
+          [postId, user.post_key, date], function(err) {
+            if (err) {
+              return res.status(500).json({ success: false, message: 'Failed to like post' });
+            }
+            return res.json({ success: true, action: 'liked' });
+        });
+      }
+    });
+  });
+});
+
+// Favorite a post
+app.post('/favorite-post/:id', (req, res) => {
+  const postId = req.params.id;
+  const { postKey } = req.body;
+  
+  validatePostKey(postKey, (user) => {
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid post key. Please check for typos and try again.' });
+    }
+    
+    const date = moment().format('YYYY-MM-DD HH:mm:ss');
+    
+    // Check if already favorited
+    db.get("SELECT id FROM favorites WHERE post_id = ? AND user_key = ?", [postId, user.post_key], (err, favorite) => {
+      if (favorite) {
+        // Remove from favorites
+        db.run("DELETE FROM favorites WHERE id = ?", [favorite.id], function(err) {
+          if (err) {
+            return res.status(500).json({ success: false, message: 'Failed to unfavorite post' });
+          }
+          return res.json({ success: true, action: 'unfavorited' });
+        });
+      } else {
+        // Add to favorites
+        db.run("INSERT INTO favorites (post_id, user_key, created_at) VALUES (?, ?, ?)", 
+          [postId, user.post_key, date], function(err) {
+            if (err) {
+              return res.status(500).json({ success: false, message: 'Failed to favorite post' });
+            }
+            return res.json({ success: true, action: 'favorited' });
+        });
+      }
+    });
+  });
+});
+
+// Repost
+app.post('/repost/:id', (req, res) => {
+  const postId = req.params.id;
+  const { postKey, comment } = req.body;
+  
+  // Check for admin keys first
+  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({ success: false, message: 'Invalid post key' });
+    }
+    
+    const date = moment().format('YYYY-MM-DD HH:mm:ss');
+    
+    // Create the repost
+    db.run("INSERT INTO reposts (original_post_id, user_key, comment, created_at) VALUES (?, ?, ?, ?)", 
+      [postId, postKey, comment || null, date], function(err) {
+        if (err) {
+          return res.status(500).json({ success: false, message: 'Failed to repost' });
+        }
+        return res.json({ success: true, message: 'Reposted successfully' });
+    });
+  });
+});
+
+// Add friend
+app.post('/add-friend/:username', (req, res) => {
+  const targetUsername = req.params.username;
+  const { postKey } = req.body;
+  
+  // Check for admin keys first
+  const validAdminKeys = ['pibble_power3', '1pibble'];
+  if (validAdminKeys.includes(postKey)) {
+    // Find target user
+    db.get("SELECT * FROM users WHERE username = ?", [targetUsername], (err, targetUser) => {
+      if (err || !targetUser) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      
+      // Check if self
+      if (targetUser.post_key === postKey) {
+        return res.status(400).json({ success: false, message: 'Cannot add yourself as a friend' });
+      }
+      
+      const date = moment().format('YYYY-MM-DD HH:mm:ss');
+      
+      // Check if friend request already exists
+      db.get(`SELECT * FROM friends 
+              WHERE (user_key_1 = ? AND user_key_2 = ?) OR (user_key_1 = ? AND user_key_2 = ?)`,
+              [postKey, targetUser.post_key, targetUser.post_key, postKey], (err, friendship) => {
+        
+        if (friendship) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Friend request already exists',
+            status: friendship.status 
+          });
+        }
+        
+        // Create friend request
+        db.run("INSERT INTO friends (user_key_1, user_key_2, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", 
+          [postKey, targetUser.post_key, 'pending', date, date], function(err) {
+            if (err) {
+              return res.status(500).json({ success: false, message: 'Failed to send friend request' });
+            }
+            return res.json({ success: true, message: 'Friend request sent' });
+        });
+      });
+    });
+    return; // Added return to avoid running the next validation
+  }
+  
+  // Regular user validation
+  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, requestingUser) => {
+    if (err || !requestingUser) {
+      return res.status(401).json({ success: false, message: 'Invalid post key' });
+    }
+    
+    // Find target user
+    db.get("SELECT * FROM users WHERE username = ?", [targetUsername], (err, targetUser) => {
+      if (err || !targetUser) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+      
+      // Check if self
+      if (targetUser.post_key === postKey) {
+        return res.status(400).json({ success: false, message: 'Cannot add yourself as a friend' });
+      }
+      
+      const date = moment().format('YYYY-MM-DD HH:mm:ss');
+      
+      // Check if friend request already exists
+      db.get(`SELECT * FROM friends 
+              WHERE (user_key_1 = ? AND user_key_2 = ?) OR (user_key_1 = ? AND user_key_2 = ?)`,
+              [postKey, targetUser.post_key, targetUser.post_key, postKey], (err, friendship) => {
+        
+        if (friendship) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Friend request already exists',
+            status: friendship.status 
+          });
+        }
+        
+        // Create friend request
+        db.run("INSERT INTO friends (user_key_1, user_key_2, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", 
+          [postKey, targetUser.post_key, 'pending', date, date], function(err) {
+            if (err) {
+              return res.status(500).json({ success: false, message: 'Failed to send friend request' });
+            }
+            return res.json({ success: true, message: 'Friend request sent' });
+        });
+      });
+    });
+  });
+});
+
+// Get user favorites
+app.get('/favorites', (req, res) => {
+  const { postKey } = req.query;
+  
+  // Check for missing post key
+  if (!postKey) {
+    return res.render('favorites', { error: 'Post key is required. Please provide your post key.' });
+  }
+  
+  // Validate user
+  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+    if (err) {
+      console.error("Database error in favorites route:", err);
+      return res.render('favorites', { error: 'A database error occurred. Please try again later.' });
+    }
+    
+    if (!user) {
+      return res.render('favorites', { error: 'Invalid post key. Please check for typos and try again.' });
+    }
+    
+    // Get favorited posts with LEFT JOINs to handle missing related records
+    db.all(`SELECT posts.*, users.username, users.profile_pic,
+            categories.name AS category_name, categories.id AS category_id
+            FROM favorites
+            LEFT JOIN posts ON favorites.post_id = posts.id
+            LEFT JOIN users ON posts.user_key = users.post_key
+            LEFT JOIN categories ON posts.category_id = categories.id
+            WHERE favorites.user_key = ?
+            ORDER BY favorites.created_at DESC`, [postKey], (err, posts) => {
+      
+      if (err) {
+        console.error("Database error fetching favorites:", err);
+        return res.render('favorites', { error: 'Failed to load favorites. Please try again later.' });
+      }
+      
+      // Filter out any null records (from deleted posts)
+      const validPosts = posts.filter(post => post.id !== null);
+      
+      res.render('favorites', { posts: validPosts, user });
+    });
+  });
+});
+
+// Get user friends
+app.get('/friends', (req, res) => {
+  const { postKey } = req.query;
+  
+  if (!postKey) {
+    return res.render('friends', { loggedIn: false });
+  }
+  
+  // Validate user with our helper function
+  validatePostKey(postKey, (currentUser) => {
+    if (!currentUser) {
+      return res.render('friends', { loggedIn: false, error: 'Invalid post key. Please check for typos and try again.' });
+    }
+    
+    // Get accepted friends
+    db.all(`SELECT users.username, users.profile_pic, users.role, friends.updated_at as friend_since,
+            CASE 
+              WHEN friends.user_key_1 = ? THEN friends.user_key_2
+              ELSE friends.user_key_1
+            END as friend_key
+            FROM friends
+            JOIN users ON (
+              CASE 
+                WHEN friends.user_key_1 = ? THEN friends.user_key_2
+                ELSE friends.user_key_1
+              END = users.post_key
+            )
+            WHERE (friends.user_key_1 = ? OR friends.user_key_2 = ?) AND friends.status = 'accepted'
+            ORDER BY friends.updated_at DESC`, 
+            [postKey, postKey, postKey, postKey], (err, friends) => {
+      
+      if (err) {
+        return res.render('friends', { 
+          loggedIn: true, 
+          currentUser, 
+          error: 'Failed to load friends',
+          friends: [],
+          pendingRequests: []
+        });
+      }
+      
+      // Get pending requests
+      db.all(`SELECT users.username, users.profile_pic, friends.created_at as request_date,
+              CASE 
+                WHEN friends.user_key_1 = ? THEN 'outgoing'
+                ELSE 'incoming'
+              END as direction,
+              CASE 
+                WHEN friends.user_key_1 = ? THEN friends.user_key_2
+                ELSE friends.user_key_1
+              END as other_user_key
+              FROM friends
+              JOIN users ON (
+                CASE 
+                  WHEN friends.user_key_1 = ? THEN friends.user_key_2
+                  ELSE friends.user_key_1
+                END = users.post_key
+              )
+              WHERE (friends.user_key_1 = ? OR friends.user_key_2 = ?) AND friends.status = 'pending'`, 
+              [postKey, postKey, postKey, postKey, postKey], (err, pendingRequests) => {
+        
+        res.render('friends', { 
+          loggedIn: true, 
+          currentUser, 
+          friends, 
+          pendingRequests: pendingRequests || []
+        });
+      });
+    });
+  });
+});
+
+// Friend request response (accept/reject)
+app.post('/friend-request/:action', (req, res) => {
+  const action = req.params.action; // 'accept' or 'reject'
+  const { postKey, friendKey } = req.body;
+  
+  if (!['accept', 'reject'].includes(action)) {
+    return res.status(400).json({ success: false, message: 'Invalid action' });
+  }
+  
+  // Validate user
+  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({ success: false, message: 'Invalid post key' });
+    }
+    
+    const date = moment().format('YYYY-MM-DD HH:mm:ss');
+    const newStatus = action === 'accept' ? 'accepted' : 'rejected';
+    
+    // Update friend request
+    db.run(`UPDATE friends SET status = ?, updated_at = ? 
+            WHERE user_key_2 = ? AND user_key_1 = ? AND status = 'pending'`, 
+            [newStatus, date, postKey, friendKey], function(err) {
+      
+      if (err) {
+        return res.status(500).json({ 
+          success: false, 
+          message: `Failed to ${action} friend request`
+        });
+      }
+      
+      if (this.changes === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Friend request not found or already processed'
+        });
+      }
+      
+      return res.json({ 
+        success: true, 
+        message: `Friend request ${action}ed`
+      });
+    });
+  });
+});
+
+// Chat history endpoint
+app.get('/chat-history', (req, res) => {
+  const { userKey, friendKey } = req.query;
+  
+  if (!userKey || !friendKey) {
+    return res.status(400).json({ success: false, message: 'Missing parameters' });
+  }
+  
+  // Validate both users
+  db.get("SELECT * FROM users WHERE post_key IN (?, ?)", [userKey, friendKey], (err, user) => {
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    // Check if they are friends
+    db.get(`SELECT * FROM friends 
+            WHERE ((user_key_1 = ? AND user_key_2 = ?) OR (user_key_1 = ? AND user_key_2 = ?)) 
+            AND status = 'accepted'`, 
+            [userKey, friendKey, friendKey, userKey], (err, friendship) => {
+      
+      if (err) {
+        return res.status(500).json({ success: false, message: 'Database error' });
+      }
+      
+      if (!friendship) {
+        return res.status(403).json({ success: false, message: 'Not friends' });
+      }
+      
+      // Get messages between the users
+      db.all(`SELECT * FROM friend_messages
+              WHERE (sender_key = ? AND receiver_key = ?) OR (sender_key = ? AND receiver_key = ?)
+              ORDER BY created_at ASC`, 
+              [userKey, friendKey, friendKey, userKey], (err, messages) => {
+        
+        if (err) {
+          return res.status(500).json({ success: false, message: 'Failed to load messages' });
+        }
+        
+        res.json({ success: true, messages });
+        
+        // Mark messages as read
+        if (messages.some(m => m.sender_key === friendKey && !m.read_at)) {
+          const now = moment().format('YYYY-MM-DD HH:mm:ss');
+          db.run(`UPDATE friend_messages SET read_at = ? 
+                  WHERE sender_key = ? AND receiver_key = ? AND read_at IS NULL`, 
+                  [now, friendKey, userKey]);
+        }
+      });
+    });
+  });
+});
+
+// Upload chat image
+app.post('/upload-chat-image', upload.single('image'), (req, res) => {
+  const { senderKey, receiverKey } = req.body;
+  
+  if (!req.file || !senderKey || !receiverKey) {
+    return res.status(400).json({ success: false, message: 'Missing parameters' });
+  }
+  
+  const imagePath = `uploads/${req.file.filename}`;
+  const date = moment().format('YYYY-MM-DD HH:mm:ss');
+  
+  // Insert message with image
+  db.run(`INSERT INTO friend_messages 
+          (sender_key, receiver_key, message, image_path, created_at) 
+          VALUES (?, ?, ?, ?, ?)`, 
+          [senderKey, receiverKey, '', imagePath, date], function(err) {
+    
+    if (err) {
+      return res.status(500).json({ success: false, message: 'Failed to save message' });
+    }
+    
+    const messageId = this.lastID;
+    
+    // Notify users via Socket.IO
+    io.to(`chat_${senderKey}_${receiverKey}`).emit('private_message', {
+      id: messageId,
+      sender: senderKey,
+      receiver: receiverKey,
+      message: '',
+      image: imagePath,
+      timestamp: date
+    });
+    
+    res.json({ success: true, messageId });
+  });
+});
+
+// Helper function to validate post keys
+function validatePostKey(postKey, callback) {
+  if (!postKey || typeof postKey !== 'string') {
+    console.log('Post key validation failed: empty or invalid type');
+    return callback(null);
+  }
+  
+  // Trim whitespace and ensure consistent format
+  const cleanKey = postKey.trim();
+  if (cleanKey === '') {
+    console.log('Post key validation failed: empty after trim');
+    return callback(null);
+  }
+  
+  // Check for admin keys first (case sensitive special keys)
+  const validAdminKeys = ['pibble_power3', '1pibble'];
+  if (validAdminKeys.includes(cleanKey)) {
+    console.log('Admin key validated');
+    // Look up the admin user in the database
+    db.get("SELECT * FROM users WHERE post_key = ?", [cleanKey], (err, user) => {
+      if (err || !user) {
+        // If admin key not found in database, create a default admin user object
+        console.log(`Admin key ${cleanKey} not found in database, creating temporary user object`);
+        const adminUser = {
+          post_key: cleanKey,
+          username: cleanKey === 'pibble_power3' ? 'Tulip' : 'Admin',
+          profile_pic: 'uploads/default-avatar.png',
+          role: 'Admin'
+        };
+        return callback(adminUser);
+      }
+      // Admin user found in database
+      callback(user);
+    });
+    return;
+  }
+  
+  // For regular users, do a database lookup
+  console.log(`Validating user post key (${cleanKey.length} chars)`);
+  db.get("SELECT * FROM users WHERE post_key = ?", [cleanKey], (err, user) => {
+    if (err) {
+      console.error('Database error during post key validation:', err.message);
+      return callback(null);
+    }
+    if (!user) {
+      console.log('Post key not found in database');
+      return callback(null);
+    }
+    callback(user);
+  });
+}
+
+// Validate if a user owns a profile
+app.post('/validate-profile-owner', bodyParser.json(), (req, res) => {
+  const { postKey, username } = req.body;
+  
+  if (!postKey || !username) {
+    return res.status(400).json({ success: false, message: 'Missing required parameters' });
+  }
+  
+  db.get("SELECT * FROM users WHERE post_key = ? AND username = ?", [postKey, username], (err, user) => {
+    if (err) {
+      console.error("Database error during profile owner validation:", err);
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
+    
+    res.json({ success: !!user });
+  });
+});
+
+// Get edit profile page
+app.get('/edit-profile', (req, res) => {
+  const { postKey } = req.query;
+  
+  if (!postKey) {
+    return res.status(400).send('Post key is required');
+  }
+
+  validatePostKey(postKey, (user) => {
+    if (!user) {
+      return res.status(401).send('Invalid post key. Please check for typos and try again.');
+    }
+    
+    // Render the edit profile page with user data
+    res.render('edit-profile', { user });
   });
 });
 

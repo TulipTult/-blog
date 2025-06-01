@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Friends - TulipParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/aero.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+  <header>
+    <h1>TulipParty</h1>
+    <div class="header-links">
+      <a href="/" class="back-button">Home</a>
+      <a href="/chat" class="create-button">Live Chat</a>
+      <a href="/create" class="create-button">New Post</a>
+    </div>
+  </header>
+  
+  <main class="friends-container">
+    <% if (!locals.loggedIn) { %>
+      <div class="friends-login">
+        <h2>Your Friends</h2>
+        <p>Enter your post key to access your friends:</p>
+        <div class="form-group">
+          <input type="password" id="access-post-key" placeholder="Your Post Key">
+          <button id="access-friends-btn" class="submit-button">Access Friends</button>
+        </div>
+        <% if (locals.error) { %>
+          <div class="error"><%= error %></div>
+        <% } %>
+      </div>
+    <% } else { %>
+      <div class="friends-section">
+        <h2>Welcome, <%= currentUser.username %></h2>
+        
+        <% if (locals.friends && friends.length > 0) { %>
+          <h3>Your Friends</h3>
+          <div class="friend-list">
+            <% friends.forEach(friend => { %>
+              <div class="friend-card">
+                <img class="friend-avatar" src="/<%= friend.profile_pic %>" alt="<%= friend.username %>">
+                <div class="friend-info">
+                  <h4><a href="/profile/<%= friend.username %>"><%= friend.username %></a></h4>
+                  <% if (friend.role) { %>
+                    <div class="friend-role"><%= friend.role %></div>
+                  <% } %>
+                  <div class="friend-since">Friends since <%= new Date(friend.friend_since).toLocaleDateString() %></div>
+                </div>
+                <div class="friend-actions">
+                  <button class="chat-btn" data-friend-key="<%= friend.friend_key %>" data-username="<%= friend.username %>">
+                    <i class="fas fa-comment"></i> Chat
+                  </button>
+                </div>
+              </div>
+            <% }) %>
+          </div>
+        <% } else { %>
+          <div class="no-friends">
+            <p>You don't have any friends yet. Find users on the platform and send them a friend request!</p>
+          </div>
+        <% } %>
+        
+        <% if (locals.pendingRequests && pendingRequests.length > 0) { %>
+          <div class="requests-section">
+            <h3>Friend Requests</h3>
+            
+            <% pendingRequests.forEach(request => { %>
+              <div class="request-card">
+                <img class="request-avatar" src="/<%= request.profile_pic %>" alt="<%= request.username %>">
+                <div class="request-info">
+                  <div class="username"><a href="/profile/<%= request.username %>"><%= request.username %></a></div>
+                  <div class="date">
+                    <% if (request.direction === 'incoming') { %>
+                      Sent you a request on <%= new Date(request.request_date).toLocaleDateString() %>
+                    <% } else { %>
+                      You sent a request on <%= new Date(request.request_date).toLocaleDateString() %>
+                    <% } %>
+                  </div>
+                </div>
+                
+                <% if (request.direction === 'incoming') { %>
+                  <div class="request-actions">
+                    <button class="accept-btn" data-friend-key="<%= request.other_user_key %>">Accept</button>
+                    <button class="reject-btn" data-friend-key="<%= request.other_user_key %>">Reject</button>
+                  </div>
+                <% } %>
+              </div>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+      
+      <!-- Friends Chat Section -->
+      <div class="friends-section">
+        <h3>Friends Chat</h3>
+        <div class="friends-chat">
+          <div class="friend-list-sidebar">
+            <% if (locals.friends && friends.length > 0) { %>
+              <% friends.forEach(friend => { %>
+                <div class="friend-list-item" data-friend-key="<%= friend.friend_key %>" data-username="<%= friend.username %>">
+                  <img src="/<%= friend.profile_pic %>" alt="<%= friend.username %>">
+                  <div class="friend-name"><%= friend.username %></div>
+                </div>
+              <% }) %>
+            <% } else { %>
+              <div class="no-friends-chat">No friends to chat with yet</div>
+            <% } %>
+          </div>
+          
+          <div class="chat-area">
+            <div class="chat-messages" id="chat-messages">
+              <div class="no-chat-selected">Select a friend to start chatting</div>
+            </div>
+            
+            <div class="chat-input-area">
+              <textarea id="message-text" placeholder="Type a message..." disabled></textarea>
+              <button id="send-message" disabled><i class="fas fa-paper-plane"></i></button>
+              <button id="attach-media" disabled><i class="fas fa-paperclip"></i></button>
+              <input type="file" id="media-upload" style="display: none" accept="image/*,video/mp4,video/webm">
+            </div>
+          </div>
+        </div>
+      </div>
+    <% } %>
+  </main>
+  
+  <!-- Chat Authentication Modal -->
+  <div id="chat-auth-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <h3>Authenticate to Chat</h3>
+      <p>Enter your post key to access the chat:</p>
+      <input type="password" id="chat-post-key" placeholder="Your Post Key">
+      <button id="auth-chat" class="submit-button">Start Chatting</button>
+      <div id="chat-auth-message" class="request-message"></div>
+    </div>
+  </div>
+  
+  <!-- Add a JSON data script to store server variables -->
+  <script type="application/json" id="server-data">
+    {
+      "isLoggedIn": <%= (locals && locals.loggedIn) ? "true" : "false" %>,
+      "currentUser": <%- (locals && locals.currentUser) ? JSON.stringify(locals.currentUser) : "null" %>
+    }
+  </script>
+  
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // For non-authenticated users
+      const accessBtn = document.getElementById('access-friends-btn');
+      if (accessBtn) {
+        accessBtn.addEventListener('click', function() {
+          const postKey = document.getElementById('access-post-key').value.trim();
+          if (!postKey) {
+            showError('Please enter your post key');
+            return;
+          }
+          
+          window.location.href = `/friends?postKey=${encodeURIComponent(postKey)}`;
+        });
+      }
+      
+      // Get server data from the JSON script tag
+      const serverData = JSON.parse(document.getElementById('server-data').textContent);
+      const isLoggedIn = serverData.isLoggedIn;
+      const currentUserData = serverData.currentUser;
+      
+      if (isLoggedIn && currentUserData) {
+        // Initialize Friends Chat functionality
+        initializeFriendsChat(currentUserData);
+      }
+      
+      function showError(message) {
+        // Create error element if it doesn't exist
+        let errorDiv = document.querySelector('.friends-login .error');
+        if (!errorDiv) {
+          errorDiv = document.createElement('div');
+          errorDiv.className = 'error';
+          document.querySelector('.friends-login').appendChild(errorDiv);
+        }
+        errorDiv.textContent = message;
+      }
+      
+      function initializeFriendsChat(currentUser) {
+        // Core variables
+        let currentChatFriend = null;
+        let authenticated = false;
+        const messageArea = document.getElementById('chat-messages');
+        const messageInput = document.getElementById('message-text');
+        const sendButton = document.getElementById('send-message');
+        const attachMediaBtn = document.getElementById('attach-media');
+        const chatAuthModal = document.getElementById('chat-auth-modal');
+        const closeModal = document.querySelector('#chat-auth-modal .close-modal');
+        // Add a set to track recently sent messages
+        const recentlySentMessages = new Set();
+        
+        // Initialize WebSocket
+        const socket = io();
+        
+        // Friend request response handlers
+        setupFriendRequestHandlers();
+        
+        // Chat initialization
+        setupChatHandlers();
+        
+        // Authentication handlers
+        setupAuthHandlers();
+        
+        // Media upload handlers
+        setupMediaUploadHandlers();
+        
+        function setupFriendRequestHandlers() {
+          document.querySelectorAll('.accept-btn, .reject-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+              const action = this.classList.contains('accept-btn') ? 'accept' : 'reject';
+              const friendKey = this.dataset.friendKey;
+              
+              fetch(`/friend-request/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  postKey: currentUserData ? currentUserData.post_key : '',
+                  friendKey: friendKey
+                })
+              })
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error('Network response was not ok');
+                }
+                return response.json();
+              })
+              .then(data => {
+                if (data.success) {
+                  // Remove the request card
+                  this.closest('.request-card').remove();
+                  
+                  // If accepted, reload to show new friend
+                  if (action === 'accept') {
+                    window.location.reload();
+                  }
+                } else {
+                  alert(data.message || 'Error processing request');
+                }
+              })
+              .catch(err => {
+                console.error("Error processing friend request:", err);
+                alert("An error occurred. Please try again.");
+              });
+            });
+          });
+        }
+        
+        function setupChatHandlers() {
+          // Chat button click handlers
+          document.querySelectorAll('.chat-btn, .friend-list-item').forEach(element => {
+            element.addEventListener('click', function() {
+              const friendKey = this.dataset.friendKey;
+              const username = this.dataset.username || this.querySelector('.friend-name')?.textContent;
+              
+              if (!authenticated) {
+                currentChatFriend = { key: friendKey, name: username };
+                chatAuthModal.style.display = 'block';
+              } else {
+                if (this.classList.contains('friend-list-item')) {
+                  document.querySelectorAll('.friend-list-item').forEach(i => i.classList.remove('active'));
+                  this.classList.add('active');
+                }
+                loadChatHistory(friendKey, username);
+              }
+            });
+          });
+          
+          // Send message handlers
+          sendButton.addEventListener('click', sendMessage);
+          
+          messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              sendMessage();
+            }
+          });
+        }
+        
+        function setupAuthHandlers() {
+          closeModal.addEventListener('click', () => {
+            chatAuthModal.style.display = 'none';
+            document.getElementById('chat-auth-message').textContent = '';
+          });
+          
+          document.getElementById('auth-chat').addEventListener('click', function() {
+            const postKey = document.getElementById('chat-post-key').value.trim();
+            const authMessage = document.getElementById('chat-auth-message');
+            
+            if (!postKey) {
+              authMessage.textContent = 'Please enter your post key';
+              authMessage.className = 'request-message error';
+              return;
+            }
+            
+            // Verify post key matches the current user
+            if (postKey === currentUser.post_key) {
+              authenticated = true;
+              chatAuthModal.style.display = 'none';
+              
+              // Enable chat interface
+              messageInput.disabled = false;
+              sendButton.disabled = false;
+              attachMediaBtn.disabled = false;
+              
+              // Initialize chat with selected friend if any
+              if (currentChatFriend) {
+                document.querySelectorAll('.friend-list-item').forEach(item => {
+                  if (item.dataset.friendKey === currentChatFriend.key) {
+                    item.classList.add('active');
+                  }
+                });
+                
+                loadChatHistory(currentChatFriend.key, currentChatFriend.name);
+                
+                // Join private chat room
+                socket.emit('join_private_chat', { 
+                  userKey: currentUser.post_key,
+                  friendKey: currentChatFriend.key
+                });
+              }
+            } else {
+              authMessage.textContent = 'Invalid post key';
+              authMessage.className = 'request-message error';
+            }
+          });
+        }
+        
+        function setupMediaUploadHandlers() {
+          const mediaUpload = document.getElementById('media-upload');
+          
+          attachMediaBtn.addEventListener('click', function() {
+            if (!authenticated) {
+              chatAuthModal.style.display = 'block';
+              return;
+            }
+            if (currentChatFriend) {
+              mediaUpload.click();
+            } else {
+              alert('Please select a friend to chat with first');
+            }
+          });
+          
+          mediaUpload.addEventListener('change', function() {
+            if (!authenticated || !currentChatFriend || !this.files.length) return;
+            
+            const file = this.files[0];
+            const formData = new FormData();
+            
+            formData.append('image', file);
+            formData.append('senderKey', currentUserData.post_key);
+            formData.append('receiverKey', currentChatFriend.key);
+            
+            // Show uploading indicator
+            const tempId = 'upload-' + Date.now();
+            addMessageToChat('Uploading image...', false, new Date().toISOString(), null, null, tempId);
+            
+            fetch('/upload-chat-image', {
+              method: 'POST',
+              body: formData
+            })
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              if (data.success) {
+                // Replace uploading indicator with successful upload
+                const uploadingElement = document.getElementById(tempId);
+                if (uploadingElement) {
+                  uploadingElement.remove();
+                }
+                addMessageToChat('', false, new Date().toISOString(), data.imagePath);
+              } else {
+                // Show error in place of uploading indicator
+                const uploadingElement = document.getElementById(tempId);
+                if (uploadingElement) {
+                  uploadingElement.innerHTML = `<div class="message-text error">Failed to upload: ${data.message || 'Unknown error'}</div>`;
+                }
+              }
+            })
+            .catch(err => {
+              console.error("Error uploading image:", err);
+              // Show error in place of uploading indicator
+              const uploadingElement = document.getElementById(tempId);
+              if (uploadingElement) {
+                uploadingElement.innerHTML = '<div class="message-text error">Error uploading image</div>';
+              }
+            });
+            
+            this.value = '';
+          });
+        }
+        
+        function sendMessage() {
+          if (!authenticated || !currentChatFriend) return;
+          
+          const message = messageInput.value.trim();
+          if (!message) return;
+          
+          // Generate a unique ID for this message
+          const localMsgId = Date.now().toString();
+          
+          // Send message via socket
+          socket.emit('send_private_message', {
+            sender: currentUserData ? currentUserData.post_key : '',
+            receiver: currentChatFriend.key,
+            message: message,
+            timestamp: new Date().toISOString(),
+            localMsgId: localMsgId
+          });
+          
+          // Remove this line that adds the message locally
+          // addMessageToChat(message, false, new Date().toISOString());
+          
+          // Clear input
+          messageInput.value = '';
+        }
+        
+        function loadChatHistory(friendKey, friendName) {
+          if (!authenticated) return;
+          
+          currentChatFriend = { key: friendKey, name: friendName };
+          messageArea.innerHTML = `<div class="chat-header-info">Chat with ${friendName}</div>`;
+          
+          // Add loading indicator
+          const loadingElement = document.createElement('div');
+          loadingElement.className = 'chat-info-message';
+          loadingElement.textContent = 'Loading messages...';
+          loadingElement.id = 'loading-indicator';
+          messageArea.appendChild(loadingElement);
+          
+          fetch(`/chat-history?userKey=${encodeURIComponent(currentUserData ? currentUserData.post_key : '')}&friendKey=${encodeURIComponent(friendKey)}`)
+            .then(response => {
+              if (!response.ok) {
+                throw new Error('Network response was not ok');
+              }
+              return response.json();
+            })
+            .then(data => {
+              // Remove loading indicator
+              const loadingIndicator = document.getElementById('loading-indicator');
+              if (loadingIndicator) {
+                loadingIndicator.remove();
+              }
+              
+              if (data.success && data.messages && data.messages.length > 0) {
+                data.messages.forEach(msg => {
+                  const isReceived = msg.sender_key !== currentUserData.post_key;
+                  addMessageToChat(msg.message, isReceived, msg.created_at, msg.image_path, msg.gif_url);
+                });
+              } else {
+                const placeholderMessage = document.createElement('div');
+                placeholderMessage.className = 'chat-info-message';
+                placeholderMessage.textContent = `Start chatting with ${friendName}`;
+                messageArea.appendChild(placeholderMessage);
+              }
+              
+              // Scroll to bottom
+              scrollToBottom();
+            })
+            .catch(err => {
+              console.error("Error loading chat history:", err);
+              const errorMessage = document.createElement('div');
+              errorMessage.className = 'chat-error-message';
+              errorMessage.textContent = "Couldn't load chat history";
+              messageArea.appendChild(errorMessage);
+            });
+        }
+        
+        // Socket event handlers
+        socket.on('private_message', function(data) {
+          if (currentChatFriend && 
+              (data.sender === currentChatFriend.key || 
+               data.receiver === currentChatFriend.key)) {
+            const isReceived = data.sender !== currentUser.post_key;
+            
+            // Always display the message when it comes from the server
+            addMessageToChat(data.message, isReceived, data.timestamp, data.image, data.gif);
+          }
+        });
+        
+        function addMessageToChat(message, isReceived, timestamp, imagePath = null, gifUrl = null, elementId = null) {
+          const messageEl = document.createElement('div');
+          messageEl.className = isReceived ? 'message-bubble received' : 'message-bubble sent';
+          if (elementId) {
+            messageEl.id = elementId;
+          }
+          
+          let contentHtml = '';
+          
+          // Add text message if present
+          if (message) {
+            // Escape HTML to prevent XSS attacks
+            const escapedMessage = message
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            
+            contentHtml += `<div class="message-text">${escapedMessage}</div>`;
+          }
+          
+          // Add image if present
+          if (imagePath) {
+            contentHtml += `<div class="message-image"><img src="/${imagePath}" alt="Shared image" /></div>`;
+          }
+          
+          // Add gif if present
+          if (gifUrl) {
+            contentHtml += `<div class="message-gif"><img src="${gifUrl}" alt="GIF" /></div>`;
+          }
+          
+          // Add timestamp
+          contentHtml += `<div class="message-time">${formatTime(timestamp)}</div>`;
+          
+          messageEl.innerHTML = contentHtml;
+          messageArea.appendChild(messageEl);
+          scrollToBottom();
+        }
+        
+        function scrollToBottom() {
+          messageArea.scrollTop = messageArea.scrollHeight;
+        }
+        
+        function formatTime(timestamp) {
+          try {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {
+            console.error("Error formatting time:", e);
+            return "Unknown time";
+          }
+        }
+      }
+    });
+  </script>
+  
+  <footer>
+    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Argatha's chatting tool</p>
+  </footer>
+  <script src="/js/aeroEasterEgg.js"></script>
+  <script src="/js/signupKeySequence.js"></script>
+</body>
+</html>

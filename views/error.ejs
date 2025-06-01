@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error - TulipParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/aero.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+  <header>
+    <h1>TulipParty</h1>
+    <div class="header-links">
+      <a href="/" class="back-button">Home</a>
+      <a href="/chat" class="create-button">Live Chat</a>
+      <a href="/friends" class="create-button"><i class="fas fa-user-friends"></i> Friends</a>
+      <a href="/create" class="create-button">New Post</a>
+    </div>
+  </header>
+  
+  <main class="error-container">
+    <div class="error-box">
+      <i class="fas fa-exclamation-triangle error-icon"></i>
+      <h2>Oops! Something went wrong</h2>
+      
+      <% if (locals.message) { %>
+        <p class="error-message"><%= message %></p>
+      <% } %>
+      
+      <% if (locals.error && locals.error.status) { %>
+        <p class="error-status">Error <%= error.status %></p>
+      <% } %>
+      
+      <div class="error-actions">
+        <a href="javascript:history.back()" class="back-link"><i class="fas fa-arrow-left"></i> Go Back</a>
+        <a href="/" class="home-link"><i class="fas fa-home"></i> Return to Homepage</a>
+      </div>
+    </div>
+  </main>
+  
+  <footer>
+    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Argatha's chatting tool</p>
+  </footer>
+  <script src="/js/aeroEasterEgg.js"></script>
+  <script src="/js/signupKeySequence.js"></script>
+</body>
+</html>

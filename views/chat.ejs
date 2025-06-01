@@ -57,9 +57,14 @@
   </main>
 
   <footer>
-    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Argatha's chatting tool</p>
+    <p>&copy; <span id="current-year"></span> TulipParty - Argatha's chatting tool</p>
   </footer>
-  
+
+  <script>
+    // Set the current year using JavaScript instead of EJS
+    document.getElementById('current-year').textContent = new Date().getFullYear();
+  </script>
+
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/chat.js"></script>
   <script src="/js/aeroEasterEgg.js"></script>

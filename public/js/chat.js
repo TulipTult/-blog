@@ -86,8 +86,28 @@ document.addEventListener('DOMContentLoaded', function() {
     messageInput.focus();
   }
   
+  // Track messages to prevent duplicates
+  const processedMessages = new Set();
+  
   // Display a new message
   socket.on('new_message', function(data) {
+    // Generate a unique ID for this message to prevent duplicates
+    const messageId = `${data.user.post_key}_${data.timestamp}_${data.message.substring(0, 10)}`;
+    
+    // Skip if we've already processed this message
+    if (processedMessages.has(messageId)) {
+      return;
+    }
+    
+    // Mark as processed
+    processedMessages.add(messageId);
+    
+    // Limit the size of our tracking set to prevent memory issues
+    if (processedMessages.size > 100) {
+      // Remove the oldest entry (first in the set)
+      processedMessages.delete(processedMessages.values().next().value);
+    }
+    
     // Create message element
     const messageEl = document.createElement('div');
     messageEl.className = 'message';

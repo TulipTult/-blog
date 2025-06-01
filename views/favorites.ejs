@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Favorites - TulipParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/aero.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+  <header>
+    <h1>TulipParty</h1>
+    <div class="header-links">
+      <a href="/" class="back-button">Home</a>
+      <a href="/chat" class="create-button">Live Chat</a>
+      <a href="/friends" class="create-button"><i class="fas fa-user-friends"></i> Friends</a>
+      <a href="/create" class="create-button">New Post</a>
+    </div>
+  </header>
+  
+  <main class="favorites-container">
+    <h2>Your Favorites</h2>
+    
+    <% if (locals.error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+    
+    <% if (locals.posts && posts.length > 0) { %>
+      <div class="posts-list">
+        <% posts.forEach(post => { %>
+          <article class="post" data-post-id="<%= post.id %>">
+            <div class="post-header">
+              <div class="post-author">
+                <a href="/profile/<%= post.username %>">
+                  <img src="/<%= post.profile_pic %>" alt="<%= post.username %>" class="avatar">
+                </a>
+                <a href="/profile/<%= post.username %>" class="username"><%= post.username %></a>
+              </div>
+              <span class="date"><%= post.date %></span>
+            </div>
+            <h3><%= post.title %></h3>
+            <div class="post-content"><%= post.content %></div>
+            <% if (post.image_path) { %>
+              <div class="post-image">
+                <img src="<%= post.image_path %>" alt="Post image">
+              </div>
+            <% } %>
+            <div class="post-meta">
+              <span class="post-category">in <a href="/category/<%= post.category_id %>"><%= post.category_name %></a></span>
+              <div class="post-actions">
+                <button class="unfavorite-btn" data-post-id="<%= post.id %>">
+                  <i class="fas fa-star"></i> Remove from Favorites
+                </button>
+              </div>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    <% } else if (!locals.error) { %>
+      <div class="no-favorites">
+        <p>You haven't favorited any posts yet.</p>
+        <p>Browse posts and click the star icon to add them to your favorites.</p>
+        <a href="/" class="submit-button">Browse Posts</a>
+      </div>
+    <% } %>
+  </main>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Set up unfavorite buttons
+      document.querySelectorAll('.unfavorite-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const postId = this.dataset.postId;
+          const userPostKey = prompt('Enter your post key to remove from favorites:');
+          if (!userPostKey) return;
+
+          fetch(`/favorite-post/${postId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ postKey: userPostKey })
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              // Remove post from the list
+              const postElement = document.querySelector(`.post[data-post-id="${postId}"]`);
+              postElement.remove();
+              
+              // Check if there are any posts left
+              if (document.querySelectorAll('.post').length === 0) {
+                location.reload(); // Reload to show the "no favorites" message
+              }
+            } else {
+              alert(data.message);
+            }
+          })
+          .catch(error => {
+            alert("An error occurred. Please try again.");
+          });
+        });
+      });
+    });
+  </script>
+  
+  <footer>
+    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Argatha's chatting tool</p>
+  </footer>
+  <script src="/js/aeroEasterEgg.js"></script>
+  <script src="/js/signupKeySequence.js"></script>
+</body>
+</html>

@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Profile - TulipParty</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/aero.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+  <header>
+    <h1>TulipParty</h1>
+    <div class="header-links">
+      <a href="/" class="back-button">Home</a>
+      <a href="/profile/<%= user.username %>" class="back-button">Back to Profile</a>
+    </div>
+  </header>
+  
+  <main class="edit-profile-container">
+    <h2>Edit Your Profile</h2>
+    
+    <div class="edit-profile-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" value="<%= user.username %>" readonly>
+        <p class="form-help">Username cannot be changed</p>
+      </div>
+      
+      <div class="form-group">
+        <label for="role">Role</label>
+        <input type="text" id="role" placeholder="e.g., Artist, Coder, Meme Lord" value="<%= user.role || '' %>">
+      </div>
+      
+      <div class="form-group">
+        <label for="bio">Bio</label>
+        <textarea id="bio" rows="4" placeholder="Tell us about yourself"><%= user.bio || '' %></textarea>
+      </div>
+      
+      <div class="profile-customization-section">
+        <h3>Profile Customization</h3>
+        <p>Add custom sections to your profile!</p>
+        
+        <div id="sections-container">
+          <!-- Sections will be added here -->
+        </div>
+        
+        <div class="add-section-controls">
+          <button type="button" class="add-section-btn" data-type="heading">Add Heading</button>
+          <button type="button" class="add-section-btn" data-type="text">Add Text</button>
+          <button type="button" class="add-section-btn" data-type="marquee">Add Scrolling Text</button>
+          <button type="button" class="add-section-btn" data-type="image">Add Image</button>
+          <button type="button" class="add-section-btn" data-type="link">Add Link</button>
+        </div>
+      </div>
+      
+      <div class="profile-style-section">
+        <h3>Profile Style</h3>
+        
+        <div class="form-group">
+          <label for="background-color">Background Color</label>
+          <input type="color" id="background-color" value="#ffffff">
+        </div>
+        
+        <div class="form-group">
+          <label for="text-color">Text Color</label>
+          <input type="color" id="text-color" value="#000000">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label for="post-key">Your Post Key</label>
+        <input type="password" id="post-key" placeholder="Enter your post key to save changes">
+      </div>
+      
+      <button type="button" id="save-profile" class="submit-button">Save Profile</button>
+      <div id="save-message"></div>
+    </div>
+  </main>
+  
+  <!-- Templates for section types -->
+  <template id="heading-template">
+    <div class="section-item" data-type="heading">
+      <div class="section-header">
+        <span class="section-title">Heading</span>
+        <div class="section-controls">
+          <button class="move-up-btn"><i class="fas fa-arrow-up"></i></button>
+          <button class="move-down-btn"><i class="fas fa-arrow-down"></i></button>
+          <button class="delete-section-btn"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+      <div class="section-content">
+        <input type="text" class="heading-text" placeholder="Heading Text">
+        <select class="heading-size">
+          <option value="h2">Large</option>
+          <option value="h3">Medium</option>
+          <option value="h4">Small</option>
+        </select>
+      </div>
+    </div>
+  </template>
+  
+  <template id="text-template">
+    <div class="section-item" data-type="text">
+      <div class="section-header">
+        <span class="section-title">Text</span>
+        <div class="section-controls">
+          <button class="move-up-btn"><i class="fas fa-arrow-up"></i></button>
+          <button class="move-down-btn"><i class="fas fa-arrow-down"></i></button>
+          <button class="delete-section-btn"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+      <div class="section-content">
+        <textarea class="paragraph-text" placeholder="Enter your text here..."></textarea>
+      </div>
+    </div>
+  </template>
+  
+  <template id="marquee-template">
+    <div class="section-item" data-type="marquee">
+      <div class="section-header">
+        <span class="section-title">Scrolling Text</span>
+        <div class="section-controls">
+          <button class="move-up-btn"><i class="fas fa-arrow-up"></i></button>
+          <button class="move-down-btn"><i class="fas fa-arrow-down"></i></button>
+          <button class="delete-section-btn"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+      <div class="section-content">
+        <input type="text" class="marquee-text" placeholder="Scrolling Text">
+        <div class="marquee-options">
+          <label>
+            <span>Speed:</span>
+            <select class="marquee-speed">
+              <option value="slow">Slow</option>
+              <option value="medium" selected>Medium</option>
+              <option value="fast">Fast</option>
+            </select>
+          </label>
+          <label>
+            <span>Color:</span>
+            <input type="color" class="marquee-color" value="#00ccff">
+          </label>
+        </div>
+      </div>
+    </div>
+  </template>
+  
+  <template id="image-template">
+    <div class="section-item" data-type="image">
+      <div class="section-header">
+        <span class="section-title">Image</span>
+        <div class="section-controls">
+          <button class="move-up-btn"><i class="fas fa-arrow-up"></i></button>
+          <button class="move-down-btn"><i class="fas fa-arrow-down"></i></button>
+          <button class="delete-section-btn"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+      <div class="section-content">
+        <div class="image-upload">
+          <input type="file" class="image-file" accept="image/*">
+          <button class="upload-image-btn">Upload Image</button>
+        </div>
+        <div class="image-preview" style="display:none">
+          <img src="" alt="Preview" class="preview-image">
+          <button class="remove-image-btn"><i class="fas fa-times"></i></button>
+        </div>
+        <input type="hidden" class="image-path" value="">
+      </div>
+    </div>
+  </template>
+  
+  <template id="link-template">
+    <div class="section-item" data-type="link">
+      <div class="section-header">
+        <span class="section-title">Link</span>
+        <div class="section-controls">
+          <button class="move-up-btn"><i class="fas fa-arrow-up"></i></button>
+          <button class="move-down-btn"><i class="fas fa-arrow-down"></i></button>
+          <button class="delete-section-btn"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+      <div class="section-content">
+        <input type="text" class="link-text" placeholder="Link Text">
+        <input type="url" class="link-url" placeholder="https://example.com">
+      </div>
+    </div>
+  </template>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const sectionsContainer = document.getElementById('sections-container');
+      const addSectionButtons = document.querySelectorAll('.add-section-btn');
+      const saveButton = document.getElementById('save-profile');
+      const saveMessage = document.getElementById('save-message');
+      const postKeyInput = document.getElementById('post-key');
+      const backgroundColorInput = document.getElementById('background-color');
+      const textColorInput = document.getElementById('text-color');
+      
+      // Load existing customizations if any
+      let profileCustomization = null;
+      try {
+        const profileCustomizationRaw = '<%= JSON.stringify(user.profile_customization || null) %>';
+        profileCustomization = profileCustomizationRaw !== 'null' ? JSON.parse(profileCustomizationRaw) : null;
+      } catch (e) {
+        console.error("Error parsing profile customization:", e);
+        profileCustomization = null;
+      }
+      
+      if (profileCustomization) {
+        // Set style settings
+        if (profileCustomization.style) {
+          backgroundColorInput.value = profileCustomization.style.backgroundColor || '#ffffff';
+          textColorInput.value = profileCustomization.style.textColor || '#000000';
+        }
+        
+        // Load sections
+        if (profileCustomization.sections && Array.isArray(profileCustomization.sections)) {
+          profileCustomization.sections.forEach(section => {
+            addSection(section.type, section);
+          });
+        }
+      }
+      
+      // Add section button handlers
+      addSectionButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          const type = this.dataset.type;
+          addSection(type);
+        });
+      });
+      
+      // Function to add a section
+      function addSection(type, data = {}) {
+        const template = document.getElementById(`${type}-template`);
+        if (!template) return;
+        
+        const clone = document.importNode(template.content, true);
+        const section = clone.querySelector('.section-item');
+        
+        // Fill in existing data if provided
+        if (data) {
+          switch (type) {
+            case 'heading':
+              section.querySelector('.heading-text').value = data.text || '';
+              section.querySelector('.heading-size').value = data.size || 'h2';
+              break;
+            case 'text':
+              section.querySelector('.paragraph-text').value = data.text || '';
+              break;
+            case 'marquee':
+              section.querySelector('.marquee-text').value = data.text || '';
+              section.querySelector('.marquee-speed').value = data.speed || 'medium';
+              section.querySelector('.marquee-color').value = data.color || '#00ccff';
+              break;
+            case 'image':
+              if (data.path) {
+                section.querySelector('.image-path').value = data.path;
+                const preview = section.querySelector('.preview-image');
+                preview.src = data.path;
+                section.querySelector('.image-upload').style.display = 'none';
+                section.querySelector('.image-preview').style.display = 'block';
+              }
+              break;
+            case 'link':
+              section.querySelector('.link-text').value = data.text || '';
+              section.querySelector('.link-url').value = data.url || '';
+              break;
+          }
+        }
+        
+        // Set up event handlers for section controls
+        const deleteBtn = section.querySelector('.delete-section-btn');
+        deleteBtn.addEventListener('click', function() {
+          section.remove();
+        });
+        
+        const moveUpBtn = section.querySelector('.move-up-btn');
+        moveUpBtn.addEventListener('click', function() {
+          if (section.previousElementSibling) {
+            sectionsContainer.insertBefore(section, section.previousElementSibling);
+          }
+        });
+        
+        const moveDownBtn = section.querySelector('.move-down-btn');
+        moveDownBtn.addEventListener('click', function() {
+          if (section.nextElementSibling) {
+            sectionsContainer.insertBefore(section.nextElementSibling, section);
+          }
+        });
+        
+        // Set up image upload if this is an image section
+        if (type === 'image') {
+          const uploadBtn = section.querySelector('.upload-image-btn');
+          const fileInput = section.querySelector('.image-file');
+          const preview = section.querySelector('.preview-image');
+          const previewContainer = section.querySelector('.image-preview');
+          const uploadContainer = section.querySelector('.image-upload');
+          const imagePath = section.querySelector('.image-path');
+          const removeBtn = section.querySelector('.remove-image-btn');
+          
+          uploadBtn.addEventListener('click', function() {
+            fileInput.click();
+          });
+          
+          fileInput.addEventListener('change', function() {
+            if (fileInput.files && fileInput.files[0]) {
+              const formData = new FormData();
+              formData.append('image', fileInput.files[0]);
+              formData.append('postKey', postKeyInput.value);
+              
+              fetch('/upload-profile-image', {
+                method: 'POST',
+                body: formData
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.success) {
+                  imagePath.value = data.imagePath;
+                  preview.src = data.imagePath;
+                  uploadContainer.style.display = 'none';
+                  previewContainer.style.display = 'block';
+                } else {
+                  alert('Failed to upload image: ' + data.message);
+                }
+              })
+              .catch(error => {
+                console.error('Error uploading image:', error);
+                alert('Error uploading image. Please try again.');
+              });
+            }
+          });
+          
+          removeBtn.addEventListener('click', function() {
+            imagePath.value = '';
+            fileInput.value = '';
+            uploadContainer.style.display = 'block';
+            previewContainer.style.display = 'none';
+          });
+        }
+        
+        sectionsContainer.appendChild(section);
+      }
+      
+      // Save profile handler
+      saveButton.addEventListener('click', function() {
+        const postKey = postKeyInput.value.trim();
+        if (!postKey) {
+          saveMessage.textContent = 'Please enter your post key to save changes';
+          saveMessage.className = 'error';
+          return;
+        }
+        
+        // Collect profile data
+        const username = document.getElementById('username').value;
+        const role = document.getElementById('role').value;
+        const bio = document.getElementById('bio').value;
+        
+        // Collect style settings
+        const style = {
+          backgroundColor: backgroundColorInput.value,
+          textColor: textColorInput.value
+        };
+        
+        // Collect all sections
+        const sections = [];
+        document.querySelectorAll('#sections-container .section-item').forEach(section => {
+          const type = section.dataset.type;
+          
+          switch (type) {
+            case 'heading':
+              sections.push({
+                type: 'heading',
+                text: section.querySelector('.heading-text').value,
+                size: section.querySelector('.heading-size').value
+              });
+              break;
+            case 'text':
+              sections.push({
+                type: 'text',
+                text: section.querySelector('.paragraph-text').value
+              });
+              break;
+            case 'marquee':
+              sections.push({
+                type: 'marquee',
+                text: section.querySelector('.marquee-text').value,
+                speed: section.querySelector('.marquee-speed').value,
+                color: section.querySelector('.marquee-color').value
+              });
+              break;
+            case 'image':
+              sections.push({
+                type: 'image',
+                path: section.querySelector('.image-path').value
+              });
+              break;
+            case 'link':
+              sections.push({
+                type: 'link',
+                text: section.querySelector('.link-text').value,
+                url: section.querySelector('.link-url').value
+              });
+              break;
+          }
+        });
+        
+        const customizations = {
+          style: style,
+          sections: sections
+        };
+        
+        // Save to the server
+        fetch('/save-profile', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            postKey,
+            username,
+            role,
+            bio,
+            customizations
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            saveMessage.textContent = data.message;
+            saveMessage.className = 'success';
+            
+            // Redirect after a short delay
+            setTimeout(() => {
+              window.location.href = `/profile/${data.username}`;
+            }, 1500);
+          } else {
+            saveMessage.textContent = data.message;
+            saveMessage.className = 'error';
+          }
+        })
+        .catch(error => {
+          console.error('Error saving profile:', error);
+          saveMessage.textContent = 'Error saving profile. Please try again.';
+          saveMessage.className = 'error';
+        });
+      });
+    });
+  </script>
+  
+  <footer>
+    <p>&copy; <%= new Date().getFullYear() %> TulipParty - Argatha's chatting tool</p>
+  </footer>
+  <script src="/js/aeroEasterEgg.js"></script>
+  <script src="/js/signupKeySequence.js"></script>
+</body>
+</html>
