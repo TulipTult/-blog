@@ -1,250 +1,145 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
+const moment = require('moment');
 
-// Configure multer for profile image uploads
+// Database connection
+const db = new sqlite3.Database('./blog.db');
+
+// Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: function(req, file, cb) {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, '../public/uploads'));
   },
-  filename: function(req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, 'profile-' + uniqueSuffix + ext);
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
   }
 });
 const upload = multer({ storage: storage });
 
-// Get edit profile page
-router.get('/edit-profile', async (req, res) => {
-  try {
-    const postKey = req.query.postKey;
-    
-    if (!postKey) {
-      return res.status(401).send('Unauthorized: No post key provided');
+// Profile route
+router.get('/profile/:username', (req, res) => {
+  const username = req.params.username;
+  
+  db.get("SELECT * FROM users WHERE username = ?", [username], (err, user) => {
+    if (err || !user) {
+      return res.status(404).send('User not found');
     }
     
-    // Validate post key and get user
-    const user = await db.getUserByPostKey(postKey);
+    db.all(`SELECT posts.*, users.username AS author, categories.name AS category_name 
+            FROM posts 
+            JOIN categories ON posts.category_id = categories.id 
+            JOIN users ON posts.user_key = users.post_key
+            WHERE posts.user_key = ? 
+            ORDER BY posts.date DESC`, [user.post_key], (err, posts) => {
+      if (err) {
+        console.error("Error fetching user's posts:", err.message);
+        posts = [];
+      }
+      
+      res.render('profile', { user, posts });
+    });
+  });
+});
+
+// Validate profile owner
+router.post('/validate-profile-owner', (req, res) => {
+  const { postKey, username } = req.body;
+  
+  if (!postKey || !username) {
+    return res.status(400).json({ success: false, message: 'Missing required parameters' });
+  }
+  
+  db.get("SELECT * FROM users WHERE post_key = ? AND username = ?", [postKey, username], (err, user) => {
+    if (err) {
+      console.error("Database error during profile owner validation:", err);
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
     
-    if (!user) {
-      return res.status(401).send('Unauthorized: Invalid post key');
+    res.json({ success: !!user });
+  });
+});
+
+// Edit profile route
+router.get('/edit-profile', (req, res) => {
+  const { postKey } = req.query;
+  
+  if (!postKey) {
+    return res.status(400).send('Post key is required');
+  }
+
+  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+    if (err || !user) {
+      return res.status(401).send('Invalid post key. Please check for typos and try again.');
     }
     
     // Render the edit profile page with user data
     res.render('edit-profile', { user });
-  } catch (error) {
-    console.error('Error getting edit profile page:', error);
-    res.status(500).send('Server error');
-  }
-});
-
-// Handle profile image uploads
-router.post('/upload-profile-image', upload.single('image'), async (req, res) => {
-  try {
-    const postKey = req.body.postKey;
-    
-    if (!postKey || !req.file) {
-      return res.json({ success: false, message: 'Missing post key or image file' });
-    }
-    
-    // Validate post key
-    const user = await db.getUserByPostKey(postKey);
-    
-    if (!user) {
-      return res.json({ success: false, message: 'Invalid post key' });
-    }
-    
-    // Update image path in response
-    const imagePath = '/uploads/' + req.file.filename;
-    
-    return res.json({
-      success: true,
-      message: 'Image uploaded successfully',
-      imagePath
-    });
-  } catch (error) {
-    console.error('Error uploading profile image:', error);
-    return res.json({ success: false, message: 'Server error' });
-  }
+  });
 });
 
 // Save profile changes
-router.post('/save-profile', async (req, res) => {
-  try {
-    const { postKey, username, role, bio, customizations } = req.body;
-    
-    if (!postKey) {
-      return res.json({ success: false, message: 'No post key provided' });
-    }
-    
-    // Validate post key and get user
-    const user = await db.getUserByPostKey(postKey);
-    
-    if (!user || user.username !== username) {
-      return res.json({ success: false, message: 'Unauthorized or invalid user' });
-    }
-    
-    // Save profile changes
-    await updateUserProfile(username, {
-      role,
-      bio,
-      profile_customization: customizations
-    });
-    
-    return res.json({
-      success: true,
-      message: 'Profile updated successfully',
-      username
-    });
-  } catch (error) {
-    console.error('Error saving profile:', error);
-    return res.json({ success: false, message: 'Server error' });
-  }
-});
-
-// Helper function to update user profile
-async function updateUserProfile(username, profileData) {
-  const { role, bio, profile_customization } = profileData;
-  const profileCustomizationStr = JSON.stringify(profile_customization);
+router.post('/edit-profile', upload.single('profilePic'), (req, res) => {
+  const { postKey, username, bio, role } = req.body;
+  const profileCustomization = req.body.profileCustomization || '{}';
   
-  return new Promise((resolve, reject) => {
-    // First, check if the profile_customization column exists
-    db.all("PRAGMA table_info(users)", [], (err, columns) => {
-      if (err) {
-        console.error("Error checking table schema:", err);
-        return reject(err);
-      }
-      
-      const hasColumn = columns.some(col => col.name === 'profile_customization');
-      
-      if (hasColumn) {
-        // Column exists, proceed with update
-        db.run(
-          "UPDATE users SET role = ?, bio = ?, profile_customization = ? WHERE username = ?",
-          [role, bio, profileCustomizationStr, username],
-          function(err) {
-            if (err) {
-              console.error("Error updating profile:", err);
-              return reject(err);
-            }
-            resolve({ success: true, changes: this.changes });
-          }
-        );
-      } else {
-        // Column doesn't exist, add it first
-        db.run("ALTER TABLE users ADD COLUMN profile_customization TEXT", [], function(err) {
-          if (err) {
-            console.error("Error adding profile_customization column:", err);
-            // Try updating without the profile_customization
-            db.run(
-              "UPDATE users SET role = ?, bio = ? WHERE username = ?",
-              [role, bio, username],
-              function(err) {
-                if (err) {
-                  console.error("Error updating profile without customization:", err);
-                  return reject(err);
-                }
-                resolve({ success: true, changes: this.changes });
-              }
-            );
-          } else {
-            // Column added successfully, now update
-            db.run(
-              "UPDATE users SET role = ?, bio = ?, profile_customization = ? WHERE username = ?",
-              [role, bio, profileCustomizationStr, username],
-              function(err) {
-                if (err) {
-                  console.error("Error updating profile after adding column:", err);
-                  return reject(err);
-                }
-                resolve({ success: true, changes: this.changes });
-              }
-            );
-          }
-        });
-      }
-    });
-  });
-}
-
-// Route to view a user profile
-router.get('/:username', async (req, res) => {
-  try {
-    const username = req.params.username;
-    
-    // Get user data
-    const user = await getUserData(username);
-    
-    if (!user) {
-      return res.status(404).render('404', { message: 'User not found' });
-    }
-    
-    // Parse profile_customization if it exists
-    if (user.profile_customization) {
-      try {
-        user.profile_customization = JSON.parse(user.profile_customization);
-      } catch (e) {
-        console.error("Error parsing profile customization:", e);
-        user.profile_customization = {};
-      }
-    } else {
-      user.profile_customization = {};
-    }
-    
-    // Get user posts
-    const posts = await getUserPosts(username);
-    
-    res.render('profile', { user, posts });
-  } catch (error) {
-    console.error('Error getting user profile:', error);
-    res.status(500).send('Server error');
+  if (!postKey) {
+    return res.status(400).json({ success: false, message: 'Post key is required' });
   }
-});
 
-// Helper function to get user data
-async function getUserData(username) {
-  return new Promise((resolve, reject) => {
-    db.get("SELECT * FROM users WHERE username = ?", [username], (err, user) => {
-      if (err) {
-        console.error("Error getting user data:", err);
-        return reject(err);
-      }
+  db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
+    if (err || !user) {
+      return res.status(401).json({ success: false, message: 'Invalid post key' });
+    }
+    
+    let updates = { bio, role, profile_customization: profileCustomization };
+    
+    if (req.file) {
+      updates.profile_pic = `uploads/${req.file.filename}`;
       
-      resolve(user);
-    });
-  });
-}
-
-// Helper function to get user posts
-async function getUserPosts(username) {
-  return new Promise((resolve, reject) => {
-    db.get("SELECT post_key FROM users WHERE username = ?", [username], (err, user) => {
-      if (err || !user) {
-        console.error("Error getting user for posts:", err);
-        return resolve([]);
-      }
-      
-      db.all(`SELECT posts.*, categories.name AS category_name
-              FROM posts 
-              JOIN categories ON posts.category_id = categories.id
-              WHERE posts.user_key = ?
-              ORDER BY posts.date DESC`, [user.post_key], (err, posts) => {
-        if (err) {
-          console.error("Error getting user posts:", err);
-          return resolve([]);
+      // Delete old profile picture if it exists and isn't the default
+      if (user.profile_pic && user.profile_pic !== 'uploads/default-avatar.png') {
+        const oldPicPath = path.join(__dirname, '../public', user.profile_pic);
+        if (fs.existsSync(oldPicPath)) {
+          fs.unlink(oldPicPath, (err) => {
+            if (err) console.error("Failed to delete old profile pic:", err);
+          });
         }
-        resolve(posts || []);
+      }
+    }
+    
+    // Update user profile
+    const updateFields = Object.entries(updates)
+      .filter(([_, val]) => val !== undefined)
+      .map(([key, _]) => `${key} = ?`);
+    
+    const updateValues = Object.entries(updates)
+      .filter(([_, val]) => val !== undefined)
+      .map(([_, val]) => val);
+    
+    if (updateFields.length === 0) {
+      return res.json({ success: true, message: 'No changes made' });
+    }
+    
+    const query = `UPDATE users SET ${updateFields.join(', ')} WHERE post_key = ?`;
+    updateValues.push(postKey);
+    
+    db.run(query, updateValues, function(err) {
+      if (err) {
+        console.error("Error updating profile:", err);
+        return res.status(500).json({ success: false, message: 'Database error' });
+      }
+      
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        updates: { ...updates, profile_pic: updates.profile_pic }
       });
     });
   });
-}
+});
 
 module.exports = router;

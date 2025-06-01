@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function displayProfilePic(picPath) {
     // If pic starts with 'http' or '/', use as is, otherwise add '/'
     if (!picPath) return '/uploads/default-avatar.png';
-    return picPath.startsWith('/') ? picPath : '/' + picPath;
+    return picPath.startsWith('/') || picPath.startsWith('http') ? picPath : '/' + picPath;
   }
 
   // Handle authentication response
