@@ -662,11 +662,14 @@ app.get('/category/:id', (req, res) => {
       return res.redirect('/');
     }
 
-    db.all(`SELECT posts.*, users.username, users.profile_pic 
+    db.all(`SELECT posts.*, users.username, users.profile_pic,
+            (SELECT COUNT(*) FROM likes WHERE likes.post_id = posts.id) AS like_count,
+            (SELECT COUNT(*) FROM favorites WHERE favorites.post_id = posts.id) AS favorite_count,
+            (SELECT COUNT(*) FROM reposts WHERE reposts.original_post_id = posts.id) AS repost_count
             FROM posts 
             JOIN users ON posts.user_key = users.post_key
             WHERE posts.category_id = ?
-            ORDER BY date DESC`, [categoryId], (err, posts) => {
+            ORDER BY like_count DESC, date DESC`, [categoryId], (err, posts) => {
       if (err) {
         console.error(err.message);
         return res.render('category', { category, posts: [] });
@@ -818,7 +821,8 @@ app.get('/profile/:username', (req, res) => {
       return res.status(404).send('User not found');
     }
     
-    db.all(`SELECT posts.*, categories.name AS category_name 
+    db.all(`SELECT posts.*, categories.name AS category_name,
+            (SELECT COUNT(*) FROM likes WHERE likes.post_id = posts.id) AS like_count
             FROM posts 
             JOIN categories ON posts.category_id = categories.id 
             WHERE posts.user_key = ? 
@@ -937,7 +941,15 @@ app.post('/like-post/:id', (req, res) => {
           if (err) {
             return res.status(500).json({ success: false, message: 'Failed to unlike post' });
           }
-          return res.json({ success: true, action: 'unliked' });
+          
+          // Get updated like count
+          db.get("SELECT COUNT(*) as count FROM likes WHERE post_id = ?", [postId], (err, result) => {
+            return res.json({ 
+              success: true, 
+              action: 'unliked', 
+              count: result ? result.count : 0 
+            });
+          });
         });
       } else {
         // Like the post
@@ -946,7 +958,15 @@ app.post('/like-post/:id', (req, res) => {
             if (err) {
               return res.status(500).json({ success: false, message: 'Failed to like post' });
             }
-            return res.json({ success: true, action: 'liked' });
+            
+            // Get updated like count
+            db.get("SELECT COUNT(*) as count FROM likes WHERE post_id = ?", [postId], (err, result) => {
+              return res.json({ 
+                success: true, 
+                action: 'liked', 
+                count: result ? result.count : 0 
+              });
+            });
         });
       }
     });

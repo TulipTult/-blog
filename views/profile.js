@@ -29,7 +29,10 @@ router.get('/profile/:username', (req, res) => {
       return res.status(404).send('User not found');
     }
     
-    db.all(`SELECT posts.*, users.username AS author, categories.name AS category_name 
+    db.all(`SELECT posts.*, users.username AS author, categories.name AS category_name,
+            (SELECT COUNT(*) FROM likes WHERE likes.post_id = posts.id) AS like_count,
+            (SELECT COUNT(*) FROM favorites WHERE favorites.post_id = posts.id) AS favorite_count,
+            (SELECT COUNT(*) FROM reposts WHERE reposts.original_post_id = posts.id) AS repost_count
             FROM posts 
             JOIN categories ON posts.category_id = categories.id 
             JOIN users ON posts.user_key = users.post_key
