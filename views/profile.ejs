@@ -112,5 +112,101 @@
   <script id="profile-customization-data" type="application/json">
   </script>
   <script src="/js/postInteractions.js"></script>
+  
+  <!-- Add friend functionality -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Get elements
+      const addFriendBtn = document.getElementById('add-friend-btn');
+      const friendModal = document.getElementById('friend-modal');
+      const closeModal = friendModal.querySelector('.close-modal');
+      const sendRequestBtn = document.getElementById('send-friend-request');
+      const requestMessage = document.getElementById('friend-request-message');
+      const friendPostKeyInput = document.getElementById('friend-post-key');
+      
+      // Get username from the page
+      const username = '<%= user.username %>';
+      
+      // Show modal when "Add Friend" button is clicked
+      addFriendBtn.addEventListener('click', function() {
+        friendModal.style.display = 'block';
+      });
+      
+      // Close modal when X button is clicked
+      closeModal.addEventListener('click', function() {
+        friendModal.style.display = 'none';
+        requestMessage.textContent = '';
+        requestMessage.className = 'request-message';
+        friendPostKeyInput.value = '';
+      });
+      
+      // Close modal when clicking outside of it
+      window.addEventListener('click', function(event) {
+        if (event.target === friendModal) {
+          friendModal.style.display = 'none';
+          requestMessage.textContent = '';
+          requestMessage.className = 'request-message';
+          friendPostKeyInput.value = '';
+        }
+      });
+      
+      // Send friend request
+      sendRequestBtn.addEventListener('click', function() {
+        const postKey = friendPostKeyInput.value.trim();
+        
+        if (!postKey) {
+          requestMessage.textContent = 'Please enter your post key';
+          requestMessage.className = 'request-message error';
+          return;
+        }
+        
+        // Disable button and show loading state
+        sendRequestBtn.disabled = true;
+        sendRequestBtn.textContent = 'Sending...';
+        
+        // Send request to server
+        fetch(`/add-friend/${username}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ postKey })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            requestMessage.textContent = data.message || 'Friend request sent successfully!';
+            requestMessage.className = 'request-message success';
+            // Optionally change button appearance
+            addFriendBtn.innerHTML = '<i class="fas fa-user-clock"></i> Request Sent';
+            // Close modal after a delay
+            setTimeout(() => {
+              friendModal.style.display = 'none';
+            }, 2000);
+          } else {
+            requestMessage.textContent = data.message || 'Failed to send friend request';
+            requestMessage.className = 'request-message error';
+          }
+        })
+        .catch(error => {
+          requestMessage.textContent = 'An error occurred. Please try again.';
+          requestMessage.className = 'request-message error';
+        })
+        .finally(() => {
+          // Re-enable button
+          sendRequestBtn.disabled = false;
+          sendRequestBtn.textContent = 'Send Request';
+        });
+      });
+      
+      // Also handle Enter key in the input field
+      friendPostKeyInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          sendRequestBtn.click();
+        }
+      });
+    });
+  </script>
 </body>
 </html>
