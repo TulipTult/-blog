@@ -12,13 +12,49 @@ const db = new sqlite3.Database('./blog.db');
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../public/uploads'));
+    const uploadsDir = path.join(__dirname, '../secure-uploads');
+    // Ensure the directory exists
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    // Log the path to help with debugging
+    console.log(`Uploading to directory: ${uploadsDir}`);
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + '-' + file.originalname);
   }
 });
 const upload = multer({ storage: storage });
+
+// Add client-side file size validation
+const validateFileSize = (file) => {
+  const MAX_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+  if (file.size > MAX_SIZE) {
+    return {
+      valid: false,
+      message: `File too large. Maximum size allowed is 50MB.`
+    };
+  }
+  return { valid: true };
+};
+
+// Error handler for file uploads
+const handleUploadError = (response) => {
+  if (!response.ok) {
+    return response.text().then(text => {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        if (text.includes('File too large')) {
+          return { success: false, message: 'File size exceeds the 50MB limit. Please choose a smaller file.' };
+        }
+        return { success: false, message: 'Upload failed. Please try a smaller file.' };
+      }
+    });
+  }
+  return response.json();
+};
 
 // Profile route
 router.get('/profile/:username', (req, res) => {
@@ -94,18 +130,24 @@ router.post('/edit-profile', upload.single('profilePic'), (req, res) => {
   }
 
   db.get("SELECT * FROM users WHERE post_key = ?", [postKey], (err, user) => {
-    if (err || !user) {
+    if (err) {
+      console.error("Error validating post key:", err);
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
+    
+    if (!user) {
       return res.status(401).json({ success: false, message: 'Invalid post key' });
     }
     
     let updates = { bio, role, profile_customization: profileCustomization };
     
+    // Update profile picture path reference
     if (req.file) {
-      updates.profile_pic = `uploads/${req.file.filename}`;
+      updates.profile_pic = `secure-uploads/${req.file.filename}`;
       
       // Delete old profile picture if it exists and isn't the default
-      if (user.profile_pic && user.profile_pic !== 'uploads/default-avatar.png') {
-        const oldPicPath = path.join(__dirname, '../public', user.profile_pic);
+      if (user.profile_pic && user.profile_pic !== 'secure-uploads/default-avatar.png') {
+        const oldPicPath = path.join(__dirname, '../', user.profile_pic);
         if (fs.existsSync(oldPicPath)) {
           fs.unlink(oldPicPath, (err) => {
             if (err) console.error("Failed to delete old profile pic:", err);

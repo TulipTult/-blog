@@ -34,13 +34,68 @@ app.use(profileRouter);
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, 'public/uploads'));
+    // Change destination to a secure location outside public folder
+    const uploadsDir = path.join(__dirname, 'secure-uploads');
+    // Create directory if it doesn't exist
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+    // Create a more secure filename with random elements
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    const randomString = Math.random().toString(36).substring(2, 15);
+    cb(null, `${Date.now()}-${randomString}${fileExtension}`);
   }
 });
-const upload = multer({ storage: storage });
+
+// File filter to allow specific image and video formats
+const fileFilter = (req, file, cb) => {
+  // Accept image and video files with specific MIME types
+  if (file.mimetype.startsWith('image/')) {
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedExtensions.includes(fileExtension)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only supported image and video files are allowed'), false);
+    }
+  } else if (file.mimetype.startsWith('video/')) {
+    const allowedVideoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi'];
+    const fileExtension = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedVideoExtensions.includes(fileExtension)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only MP4, WebM, Ogg, MOV, and AVI video formats are supported'), false);
+    }
+  } else {
+    cb(new Error('Only image and video files are allowed'), false);
+  }
+};
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB file size limit for videos
+  }
+});
+
+// Add error handler for multer errors
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'File too large. Maximum size is 50MB.' });
+    }
+    return res.status(400).json({ success: false, message: err.message });
+  } else if (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  next();
+});
 
 // Database file path
 const dbPath = './blog.db';
@@ -292,7 +347,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
   db.get("SELECT * FROM users WHERE post_key = ?", ["pibble_power3"], (err, row) => {
     if (!row) {
       db.run("INSERT INTO users (post_key, username, profile_pic, role, bio) VALUES (?, ?, ?, ?, ?)", 
-        ["pibble_power3", "Tulip", "uploads/default-avatar.png", 
+        ["pibble_power3", "Tulip", "secure-uploads/default-avatar.png", 
         "Agarthas Admin", "yk ur own classic pibble lover here i love pibbles so much. drink raw milk #saveeurope"]);
     } else if (!row.role || !row.bio) {
       // Update existing user with role and bio if they're missing
@@ -312,7 +367,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
 });
 
 // Ensure default avatar exists
-const defaultAvatarPath = path.join(__dirname, 'public', 'uploads', 'default-avatar.png');
+const defaultAvatarPath = path.join(__dirname, 'secure-uploads', 'default-avatar.png');
 if (!fs.existsSync(defaultAvatarPath)) {
   console.log("Creating default avatar image...");
   // Simple 32x32 colored square as default avatar - basic PNG data
@@ -355,7 +410,7 @@ if (!fs.existsSync(defaultAvatarPath)) {
     'base64'
   );
   // Make sure the directory exists
-  const uploadsDir = path.join(__dirname, 'public', 'uploads');
+  const uploadsDir = path.join(__dirname, 'secure-uploads');
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
@@ -584,7 +639,7 @@ app.post('/signup', upload.single('profilePic'), (req, res) => {
       }
       
       // Process profile picture
-      const profilePic = req.file ? `uploads/${req.file.filename}` : 'uploads/default-avatar.png';
+      const profilePic = req.file ? `secure-uploads/${req.file.filename}` : 'secure-uploads/default-avatar.png';
       
       // Insert the new user
       db.run(
@@ -690,7 +745,7 @@ app.get('/create', (req, res) => {
 
 app.post('/create', upload.single('image'), (req, res) => {
   const { title, content, postKey, categoryId } = req.body;
-  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+  const imagePath = req.file ? `secure-uploads/${req.file.filename}` : null;
   const date = moment().format('YYYY-MM-DD HH:mm:ss');
   const category = categoryId || 1;
 
@@ -1341,40 +1396,93 @@ app.get('/chat-history', (req, res) => {
   });
 });
 
-// Upload chat image
-app.post('/upload-chat-image', upload.single('image'), (req, res) => {
-  const { senderKey, receiverKey } = req.body;
-  
-  if (!req.file || !senderKey || !receiverKey) {
-    return res.status(400).json({ success: false, message: 'Missing parameters' });
-  }
-  
-  const imagePath = `uploads/${req.file.filename}`;
-  const date = moment().format('YYYY-MM-DD HH:mm:ss');
-  
-  // Insert message with image
-  db.run(`INSERT INTO friend_messages 
-          (sender_key, receiver_key, message, image_path, created_at) 
-          VALUES (?, ?, ?, ?, ?)`, 
-          [senderKey, receiverKey, '', imagePath, date], function(err) {
+// Rename upload-chat-image to upload-chat-media
+app.post('/upload-chat-media', upload.single('media'), (req, res) => {
+  try {
+    console.log('Upload-chat-media endpoint called');
     
-    if (err) {
-      return res.status(500).json({ success: false, message: 'Failed to save message' });
+    // Log request details for debugging
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('Request file:', req.file ? `Received ${req.file.mimetype}, size: ${req.file.size}` : 'No file received');
+    
+    // If no file in request, return error as JSON
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file was uploaded' });
     }
     
-    const messageId = this.lastID;
+    const { senderKey, receiverKey } = req.body;
     
-    // Notify users via Socket.IO
-    io.to(`chat_${senderKey}_${receiverKey}`).emit('private_message', {
-      id: messageId,
-      sender: senderKey,
-      receiver: receiverKey,
-      message: '',
-      image: imagePath,
-      timestamp: date
+    if (!senderKey || !receiverKey) {
+      console.log('Missing sender or receiver key:', { sender: !!senderKey, receiver: !!receiverKey });
+      return res.status(400).json({ success: false, message: 'Missing sender or receiver key' });
+    }
+    
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(__dirname, 'secure-uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    
+    const mediaPath = `secure-uploads/${req.file.filename}`;
+    const date = moment().format('YYYY-MM-DD HH:mm:ss');
+    
+    // Determine if it's video based on file mime type
+    const isVideo = req.file.mimetype.startsWith('video/');
+    console.log(`Processing ${isVideo ? 'video' : 'image'} upload: ${req.file.filename}`);
+    
+    // Insert message with media
+    db.run(`INSERT INTO friend_messages 
+            (sender_key, receiver_key, message, image_path, created_at) 
+            VALUES (?, ?, ?, ?, ?)`, 
+            [senderKey, receiverKey, '', mediaPath, date], function(err) {
+      
+      if (err) {
+        console.error('Database error in upload-chat-media:', err);
+        return res.status(500).json({ success: false, message: 'Failed to save message' });
+      }
+      
+      const messageId = this.lastID;
+      
+      // Notify users via Socket.IO
+      io.to(`chat_${senderKey}_${receiverKey}`).emit('private_message', {
+        id: messageId,
+        sender: senderKey,
+        receiver: receiverKey,
+        message: '',
+        image: mediaPath,
+        timestamp: date
+      });
+      
+      return res.json({ success: true, messageId, mediaPath: mediaPath });
     });
+  } catch (error) {
+    console.error('Error in upload-chat-media:', error);
+    // Ensure we return JSON even on errors
+    return res.status(500).json({ success: false, message: 'Server error processing upload' });
+  }
+});
+
+// Add upload-profile-media endpoint
+app.post('/upload-profile-media', upload.single('media'), (req, res) => {
+  const { postKey } = req.body;
+  
+  if (!req.file || !postKey) {
+    return res.status(400).json({ success: false, message: 'Missing file or post key' });
+  }
+  
+  // Validate post key
+  validatePostKey(postKey, (user) => {
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid post key' });
+    }
     
-    res.json({ success: true, messageId });
+    const mediaPath = `secure-uploads/${req.file.filename}`;
+    
+    res.json({ 
+      success: true, 
+      message: 'Media uploaded successfully',
+      mediaPath
+    });
   });
 });
 
@@ -1465,6 +1573,49 @@ app.get('/edit-profile', (req, res) => {
     res.render('edit-profile', { user });
   });
 });
+
+// Create a secure route to serve files from the secure-uploads directory
+app.get('/secure-file/:filename', (req, res) => {
+  const { filename } = req.params;
+  const { token } = req.query;
+  
+  // Basic security check - we can add more robust checks here
+  if (!filename || !token) {
+    return res.status(403).send('Unauthorized access');
+  }
+  
+  // Verify token - this is a simple check, could be enhanced
+  // The token should match a hash of the filename or be validated against a session
+  const isValidToken = token === 'public' || validateFileToken(token, filename);
+  
+  if (!isValidToken) {
+    return res.status(403).send('Invalid access token');
+  }
+  
+  // Sanitize filename to prevent path traversal
+  const sanitizedFilename = path.basename(filename);
+  const filePath = path.join(__dirname, 'secure-uploads', sanitizedFilename);
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found');
+  }
+  
+  // Serve the file
+  res.sendFile(filePath);
+});
+
+// Helper function to validate file access tokens
+function validateFileToken(token, filename) {
+  // Simple implementation - in a real app, this would check against a database
+  // or validate a JWT token with proper payload
+  // For now, just check if it's a valid post key
+  return new Promise((resolve) => {
+    db.get("SELECT * FROM users WHERE post_key = ?", [token], (err, user) => {
+      resolve(!!user);
+    });
+  });
+}
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

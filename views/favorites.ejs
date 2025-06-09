@@ -33,7 +33,7 @@
             <div class="post-header">
               <div class="post-author">
                 <a href="/profile/<%= post.username %>">
-                  <img src="/<%= post.profile_pic %>" alt="<%= post.username %>" class="avatar">
+                  <img src="/secure-file/<%= post.profile_pic.split('/').pop() %>?token=public" alt="<%= post.username %>" class="avatar">
                 </a>
                 <a href="/profile/<%= post.username %>" class="username"><%= post.username %></a>
               </div>
@@ -43,7 +43,7 @@
             <div class="post-content"><%= post.content %></div>
             <% if (post.image_path) { %>
               <div class="post-image">
-                <img src="<%= post.image_path %>" alt="Post image">
+                <img src="/secure-file/<%= post.image_path.split('/').pop() %>?token=public" alt="Post image">
               </div>
             <% } %>
             <div class="post-meta">

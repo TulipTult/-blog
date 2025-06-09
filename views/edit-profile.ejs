@@ -158,11 +158,11 @@
       </div>
       <div class="section-content">
         <div class="image-upload">
-          <input type="file" class="image-file" accept="image/*">
-          <button class="upload-image-btn">Upload Image</button>
+          <input type="file" class="image-file" accept="image/*,video/*">
+          <button class="upload-image-btn">Upload Media</button>
         </div>
         <div class="image-preview" style="display:none">
-          <img src="" alt="Preview" class="preview-image">
+          <div class="media-preview-container"></div>
           <button class="remove-image-btn"><i class="fas fa-times"></i></button>
         </div>
         <input type="hidden" class="image-path" value="">
@@ -293,11 +293,38 @@
         if (type === 'image') {
           const uploadBtn = section.querySelector('.upload-image-btn');
           const fileInput = section.querySelector('.image-file');
-          const preview = section.querySelector('.preview-image');
-          const previewContainer = section.querySelector('.image-preview');
+          const previewContainer = section.querySelector('.media-preview-container');
+          const previewParent = section.querySelector('.image-preview');
           const uploadContainer = section.querySelector('.image-upload');
           const imagePath = section.querySelector('.image-path');
           const removeBtn = section.querySelector('.remove-image-btn');
+          
+          // Display existing media if available
+          if (data && data.path) {
+            const fileExt = data.path.split('.').pop().toLowerCase();
+            const isVideo = ['mp4', 'webm', 'ogg'].includes(fileExt);
+            
+            if (isVideo) {
+              const video = document.createElement('video');
+              video.controls = true;
+              video.style.maxWidth = '100%';
+              
+              const source = document.createElement('source');
+              source.src = data.path;
+              source.type = `video/${fileExt}`;
+              
+              video.appendChild(source);
+              previewContainer.appendChild(video);
+            } else {
+              const img = document.createElement('img');
+              img.src = data.path;
+              img.className = 'preview-image';
+              previewContainer.appendChild(img);
+            }
+            
+            uploadContainer.style.display = 'none';
+            previewParent.style.display = 'block';
+          }
           
           uploadBtn.addEventListener('click', function() {
             fileInput.click();
@@ -305,28 +332,67 @@
           
           fileInput.addEventListener('change', function() {
             if (fileInput.files && fileInput.files[0]) {
+              const file = fileInput.files[0];
+              const isVideo = file.type.startsWith('video/');
               const formData = new FormData();
-              formData.append('image', fileInput.files[0]);
+              formData.append('media', file);  // Renamed to 'media' for clarity
               formData.append('postKey', postKeyInput.value);
+              formData.append('mediaType', isVideo ? 'video' : 'image');
               
-              fetch('/upload-profile-image', {
+              fetch('/upload-profile-media', {  // Update endpoint
                 method: 'POST',
                 body: formData
               })
-              .then(response => response.json())
+              .then(response => {
+                if (!response.ok) {
+                  return response.text().then(text => {
+                    try {
+                      return JSON.parse(text);
+                    } catch (e) {
+                      // Check if response contains file size error
+                      if (text.includes('File too large')) {
+                        return { success: false, message: 'File size exceeds the 50MB limit. Please choose a smaller file.' };
+                      }
+                      return { success: false, message: 'Upload failed. Please try again with a smaller file.' };
+                    }
+                  });
+                }
+                return response.json();
+              })
               .then(data => {
                 if (data.success) {
-                  imagePath.value = data.imagePath;
-                  preview.src = data.imagePath;
+                  imagePath.value = data.mediaPath;
+                  
+                  // Clear previous preview
+                  previewContainer.innerHTML = '';
+                  
+                  if (isVideo) {
+                    const video = document.createElement('video');
+                    video.controls = true;
+                    video.style.maxWidth = '100%';
+                    
+                    const source = document.createElement('source');
+                    source.src = data.mediaPath;
+                    source.type = file.type;
+                    
+                    video.appendChild(source);
+                    previewContainer.appendChild(video);
+                  } else {
+                    const img = document.createElement('img');
+                    img.src = data.mediaPath;
+                    img.className = 'preview-image';
+                    previewContainer.appendChild(img);
+                  }
+                  
                   uploadContainer.style.display = 'none';
-                  previewContainer.style.display = 'block';
+                  previewParent.style.display = 'block';
                 } else {
-                  alert('Failed to upload image: ' + data.message);
+                  alert('Failed to upload media: ' + data.message);
                 }
               })
               .catch(error => {
-                console.error('Error uploading image:', error);
-                alert('Error uploading image. Please try again.');
+                console.error('Error uploading media:', error);
+                alert('Error uploading media. Please try again.');
               });
             }
           });
@@ -334,8 +400,9 @@
           removeBtn.addEventListener('click', function() {
             imagePath.value = '';
             fileInput.value = '';
+            previewContainer.innerHTML = '';
             uploadContainer.style.display = 'block';
-            previewContainer.style.display = 'none';
+            previewParent.style.display = 'none';
           });
         }
         

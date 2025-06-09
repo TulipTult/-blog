@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const moment = require('moment');
 const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 
 // Database connection
 const db = new sqlite3.Database('./blog.db');
@@ -11,13 +12,49 @@ const db = new sqlite3.Database('./blog.db');
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '../public/uploads'));
+    const uploadsDir = path.join(__dirname, '../secure-uploads');
+    // Ensure the directory exists
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    // Log the path to help with debugging
+    console.log(`Uploading to directory: ${uploadsDir}`);
+    cb(null, uploadsDir);
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + '-' + file.originalname);
   }
 });
 const upload = multer({ storage: storage });
+
+// Add client-side file size validation
+const validateFileSize = (file) => {
+  const MAX_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+  if (file.size > MAX_SIZE) {
+    return {
+      valid: false,
+      message: `File too large. Maximum size allowed is 50MB.`
+    };
+  }
+  return { valid: true };
+};
+
+// Error handler for file uploads
+const handleUploadError = (response) => {
+  if (!response.ok) {
+    return response.text().then(text => {
+      try {
+        return JSON.parse(text);
+      } catch (e) {
+        if (text.includes('File too large')) {
+          return { success: false, message: 'File size exceeds the 50MB limit. Please choose a smaller file.' };
+        }
+        return { success: false, message: 'Upload failed. Please try a smaller file.' };
+      }
+    });
+  }
+  return response.json();
+};
 
 // GET route to display the post creation form
 router.get('/create', (req, res) => {
@@ -83,7 +120,7 @@ router.post('/create', upload.single('image'), (req, res) => {
     let imagePath = null;
     
     if (req.file) {
-      imagePath = `uploads/${req.file.filename}`;
+      imagePath = `secure-uploads/${req.file.filename}`;
     }
     
     // Use selected category or default to 1 if not provided

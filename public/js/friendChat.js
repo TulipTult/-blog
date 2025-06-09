@@ -5,7 +5,132 @@ document.addEventListener('DOMContentLoaded', function() {
   const sendButton = document.getElementById('send-message');
   const attachMediaBtn = document.getElementById('attach-media');
   const mediaUpload = document.getElementById('media-upload');
-  const friendItems = document.querySelectorAll('.friend-list-item');
+  
+  // Set up media upload handlers
+  attachMediaBtn.addEventListener('click', function() {
+    if (!authenticated) {
+      chatAuthModal.style.display = 'block';
+      return;
+    }
+    if (currentChatFriend) {
+      // Show menu to choose between image/video upload or GIF
+      const menu = document.createElement('div');
+      menu.className = 'media-upload-menu';
+      menu.innerHTML = `
+        <button class="upload-option" id="upload-media"><i class="fas fa-file-upload"></i> Upload Image/Video</button>
+        <button class="upload-option" id="insert-gif"><i class="fas fa-film"></i> Insert GIF</button>
+      `;
+      
+      document.querySelector('.chat-input-area').appendChild(menu);
+      
+      document.getElementById('upload-media').addEventListener('click', function() {
+        menu.remove();
+        mediaUpload.click();
+      });
+      
+      document.getElementById('insert-gif').addEventListener('click', function() {
+        menu.remove();
+        showGifPicker();
+      });
+      
+      // Auto remove menu when clicking elsewhere
+      setTimeout(() => {
+        document.addEventListener('click', function removeMenu(e) {
+          if (!menu.contains(e.target) && e.target !== attachMediaBtn) {
+            menu.remove();
+            document.removeEventListener('click', removeMenu);
+          }
+        });
+      }, 10);
+    } else {
+      alert('Please select a friend to chat with first');
+    }
+  });
+  
+  mediaUpload.addEventListener('change', function() {
+    if (!authenticated || !currentChatFriend || !this.files.length) return;
+    
+    const file = this.files[0];
+    const isVideo = file.type.startsWith('video/');
+    const formData = new FormData();
+    
+    formData.append('media', file);
+    // Make sure we're using the correct property name
+    formData.append('senderKey', currentUserKey); 
+    formData.append('receiverKey', currentChatFriend.key);
+    
+    // Show uploading indicator
+    const tempId = 'upload-' + Date.now();
+    addMessageToChat(`Uploading ${isVideo ? 'video' : 'image'}...`, false, new Date().toISOString(), null, null, tempId);
+    
+    // Add file size check
+    if (file.size > 50 * 1024 * 1024) {
+      const uploadingElement = document.getElementById(tempId);
+      if (uploadingElement) {
+        uploadingElement.innerHTML = '<div class="message-text error">Error: File size exceeds 50MB limit</div>';
+      }
+      this.value = '';
+      return;
+    }
+    
+    fetch('/upload-chat-media', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      if (!response.ok) {
+        console.error('Upload response error:', response.status);
+        return response.text().then(text => {
+          try {
+            // Try to parse as JSON first
+            return JSON.parse(text);
+          } catch (e) {
+            // Check if response contains "File too large" text
+            if (text.includes('File too large')) {
+              return { 
+                success: false, 
+                message: 'File size exceeds the 50MB limit. Please choose a smaller file.'
+              };
+            }
+            // If not valid JSON, return a formatted error object
+            return { 
+              success: false, 
+              message: `Server returned an error (${response.status}). Please try again.` 
+            };
+          }
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (data.success) {
+        // Replace uploading indicator with successful upload
+        const uploadingElement = document.getElementById(tempId);
+        if (uploadingElement) {
+          uploadingElement.remove();
+        }
+        
+        // The message will be displayed via socket event
+        console.log(`${isVideo ? 'Video' : 'Image'} uploaded successfully`);
+      } else {
+        // Show error in place of uploading indicator
+        const uploadingElement = document.getElementById(tempId);
+        if (uploadingElement) {
+          uploadingElement.innerHTML = `<div class="message-text error">Failed to upload: ${data.message || 'Unknown error'}</div>`;
+        }
+      }
+    })
+    .catch(err => {
+      console.error("Error uploading media:", err);
+      // Show error in place of uploading indicator
+      const uploadingElement = document.getElementById(tempId);
+      if (uploadingElement) {
+        uploadingElement.innerHTML = '<div class="message-text error">Error uploading media: ' + (err.message || 'Unknown error') + '</div>';
+      }
+    });
+    
+    this.value = '';
+  });
   
   // Socket connection
   const socket = io();
@@ -121,74 +246,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Clear input
     messageInput.value = '';
   }
-  
-  // Handle file uploads
-  attachMediaBtn.addEventListener('click', function() {
-    if (!authenticated) {
-      document.getElementById('chat-auth-modal').style.display = 'block';
-      return;
-    }
-    
-    // Show menu to choose between image upload or GIF
-    const menu = document.createElement('div');
-    menu.className = 'media-upload-menu';
-    menu.innerHTML = `
-      <button class="upload-option" id="upload-image"><i class="fas fa-image"></i> Upload Image</button>
-      <button class="upload-option" id="insert-gif"><i class="fas fa-film"></i> Insert GIF</button>
-    `;
-    
-    document.querySelector('.chat-input-area').appendChild(menu);
-    
-    document.getElementById('upload-image').addEventListener('click', function() {
-      menu.remove();
-      mediaUpload.click();
-    });
-    
-    document.getElementById('insert-gif').addEventListener('click', function() {
-      menu.remove();
-      showGifPicker();
-    });
-    
-    // Auto remove menu when clicking elsewhere
-    setTimeout(() => {
-      document.addEventListener('click', function removeMenu(e) {
-        if (!menu.contains(e.target) && e.target !== attachMediaBtn) {
-          menu.remove();
-          document.removeEventListener('click', removeMenu);
-        }
-      });
-    }, 10);
-  });
-  
-  mediaUpload.addEventListener('change', function() {
-    if (!authenticated || !currentChatFriend || !this.files.length) return;
-    
-    const file = this.files[0];
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('senderKey', currentUserKey);
-    formData.append('receiverKey', currentChatFriend.key);
-    
-    fetch('/upload-chat-image', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        // Image will be displayed via socket event
-        console.log('Image uploaded successfully');
-      } else {
-        alert(data.message || 'Failed to upload image');
-      }
-    })
-    .catch(err => {
-      alert('Error uploading image');
-    });
-    
-    // Clear the file input
-    this.value = '';
-  });
   
   function showGifPicker() {
     if (gifPickerVisible) return;
@@ -320,9 +377,10 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   }
   
-  function addMessageToChat(message, isReceived, timestamp, imagePath = null, gifUrl = null) {
+  function addMessageToChat(message, isReceived, timestamp, mediaPath = null, gifUrl = null, id = null) {
     const messageEl = document.createElement('div');
     messageEl.className = isReceived ? 'message-bubble received' : 'message-bubble sent';
+    if (id) messageEl.id = id;
     
     let contentHtml = '';
     
@@ -330,8 +388,24 @@ document.addEventListener('DOMContentLoaded', function() {
       contentHtml += `<div class="message-text">${message}</div>`;
     }
     
-    if (imagePath) {
-      contentHtml += `<div class="message-image"><img src="/${imagePath}" alt="Shared image" /></div>`;
+    if (mediaPath) {
+      // Check if it's a video or an image based on file extension
+      const fileExtension = mediaPath.split('.').pop().toLowerCase();
+      const isVideo = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'wmv', 'flv', 'mkv'].includes(fileExtension);
+      
+      // Extract just the filename
+      const filename = mediaPath.split('/').pop();
+      
+      if (isVideo) {
+        contentHtml += `<div class="message-video">
+          <video controls width="100%">
+            <source src="/secure-file/${filename}?token=public" type="video/${fileExtension}">
+            Your browser does not support the video tag.
+          </video>
+        </div>`;
+      } else {
+        contentHtml += `<div class="message-image"><img src="/secure-file/${filename}?token=public" alt="Shared image" /></div>`;
+      }
     }
     
     if (gifUrl) {

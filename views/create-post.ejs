@@ -44,11 +44,11 @@
         <label for="image">Attach Image (optional)</label>
         <div class="image-upload-container">
           <div id="drop-area" class="drop-area">
-            <p>Drag & drop image here or click to select</p>
-            <input type="file" id="image" name="image" accept="image/*" class="file-input">
+            <p>Drag & drop image or video here or click to select</p>
+            <input type="file" id="image" name="image" accept="image/*,video/*" class="file-input">
           </div>
           <div id="image-preview-container" class="image-preview-container" style="display: none;">
-            <img id="image-preview" src="#" alt="Preview">
+            <div id="media-preview"></div>
             <button type="button" id="remove-image" class="remove-btn">✕</button>
           </div>
         </div>
@@ -68,5 +68,55 @@
   </footer>
   <script src="/js/aeroEasterEgg.js"></script>
   <script src="/js/dragDropUpload.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const fileInput = document.getElementById('image');
+      const previewContainer = document.getElementById('image-preview-container');
+      const mediaPreview = document.getElementById('media-preview');
+      const removeButton = document.getElementById('remove-image');
+      const dropArea = document.getElementById('drop-area'); // Add reference to drop area
+      
+      fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const file = this.files[0];
+          const fileUrl = URL.createObjectURL(file);
+          
+          // Clear previous preview
+          mediaPreview.innerHTML = '';
+          
+          if (file.type.startsWith('image/')) {
+            // Create image preview
+            const img = document.createElement('img');
+            img.src = fileUrl;
+            img.id = 'image-preview';
+            img.alt = 'Preview';
+            mediaPreview.appendChild(img);
+          } else if (file.type.startsWith('video/')) {
+            // Create video preview
+            const video = document.createElement('video');
+            video.controls = true;
+            video.style.maxWidth = '100%';
+            
+            const source = document.createElement('source');
+            source.src = fileUrl;
+            source.type = file.type;
+            
+            video.appendChild(source);
+            mediaPreview.appendChild(video);
+          }
+          
+          // Show preview and hide drop area
+          previewContainer.style.display = 'block';
+          dropArea.style.display = 'none'; // Hide the drop area
+        }
+      });
+      
+      removeButton.addEventListener('click', function() {
+        fileInput.value = '';
+        previewContainer.style.display = 'none';
+        dropArea.style.display = 'block'; // Show the drop area again
+      });
+    });
+  </script>
 </body>
 </html>

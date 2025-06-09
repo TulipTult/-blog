@@ -40,7 +40,7 @@
           <div class="friend-list">
             <% friends.forEach(friend => { %>
               <div class="friend-card">
-                <img class="friend-avatar" src="/<%= friend.profile_pic %>" alt="<%= friend.username %>">
+                <img class="friend-avatar" src="/secure-file/<%= friend.profile_pic.split('/').pop() %>?token=public" alt="<%= friend.username %>">
                 <div class="friend-info">
                   <h4><a href="/profile/<%= friend.username %>"><%= friend.username %></a></h4>
                   <% if (friend.role) { %>
@@ -68,7 +68,7 @@
             
             <% pendingRequests.forEach(request => { %>
               <div class="request-card">
-                <img class="request-avatar" src="/<%= request.profile_pic %>" alt="<%= request.username %>">
+                <img class="request-avatar" src="/secure-file/<%= request.profile_pic.split('/').pop() %>?token=public" alt="<%= request.username %>">
                 <div class="request-info">
                   <div class="username"><a href="/profile/<%= request.username %>"><%= request.username %></a></div>
                   <div class="date">
@@ -100,7 +100,7 @@
             <% if (locals.friends && friends.length > 0) { %>
               <% friends.forEach(friend => { %>
                 <div class="friend-list-item" data-friend-key="<%= friend.friend_key %>" data-username="<%= friend.username %>">
-                  <img src="/<%= friend.profile_pic %>" alt="<%= friend.username %>">
+                  <img src="/secure-file/<%= friend.profile_pic.split('/').pop() %>?token=public" alt="<%= friend.username %>">
                   <div class="friend-name"><%= friend.username %></div>
                 </div>
               <% }) %>
@@ -118,7 +118,7 @@
               <textarea id="message-text" placeholder="Type a message..." disabled></textarea>
               <button id="send-message" disabled><i class="fas fa-paper-plane"></i></button>
               <button id="attach-media" disabled><i class="fas fa-paperclip"></i></button>
-              <input type="file" id="media-upload" style="display: none" accept="image/*,video/mp4,video/webm">
+              <input type="file" id="media-upload" style="display: none" accept="image/*,video/*" max="50000000">
             </div>
           </div>
         </div>
@@ -354,21 +354,32 @@
             const file = this.files[0];
             const formData = new FormData();
             
-            formData.append('image', file);
+            formData.append('media', file);
             formData.append('senderKey', currentUserData.post_key);
             formData.append('receiverKey', currentChatFriend.key);
             
             // Show uploading indicator
             const tempId = 'upload-' + Date.now();
-            addMessageToChat('Uploading image...', false, new Date().toISOString(), null, null, tempId);
+            addMessageToChat('Uploading media...', false, new Date().toISOString(), null, null, tempId);
             
-            fetch('/upload-chat-image', {
+            fetch('/upload-chat-media', {
               method: 'POST',
               body: formData
             })
             .then(response => {
               if (!response.ok) {
-                throw new Error('Network response was not ok');
+                return response.text().then(text => {
+                  try {
+                    // Try to parse as JSON first
+                    return JSON.parse(text);
+                  } catch (e) {
+                    // Check if response contains file too large message
+                    if (text.includes('File too large')) {
+                      throw new Error('File size exceeds the 50MB limit. Please choose a smaller file.');
+                    }
+                    throw new Error(text || 'Server error');
+                  }
+                });
               }
               return response.json();
             })
@@ -379,7 +390,7 @@
                 if (uploadingElement) {
                   uploadingElement.remove();
                 }
-                addMessageToChat('', false, new Date().toISOString(), data.imagePath);
+                // The socket event will display the message
               } else {
                 // Show error in place of uploading indicator
                 const uploadingElement = document.getElementById(tempId);
@@ -393,7 +404,7 @@
               // Show error in place of uploading indicator
               const uploadingElement = document.getElementById(tempId);
               if (uploadingElement) {
-                uploadingElement.innerHTML = '<div class="message-text error">Error uploading image</div>';
+                uploadingElement.innerHTML = '<div class="message-text error">Error uploading image: ' + err.message + '</div>';
               }
             });
             
@@ -511,9 +522,22 @@
             contentHtml += `<div class="message-text">${escapedMessage}</div>`;
           }
           
-          // Add image if present
+          // Add image or video if present
           if (imagePath) {
-            contentHtml += `<div class="message-image"><img src="/${imagePath}" alt="Shared image" /></div>`;
+            // Check if it's a video or an image based on file extension
+            const fileExtension = imagePath.split('.').pop().toLowerCase();
+            const isVideo = ['mp4', 'webm', 'ogg'].includes(fileExtension);
+            
+            if (isVideo) {
+              contentHtml += `<div class="message-video">
+                <video controls>
+                  <source src="/secure-file/${imagePath.split('/').pop()}?token=${currentUserData.post_key}" type="video/${fileExtension}">
+                  Your browser does not support the video tag.
+                </video>
+              </div>`;
+            } else {
+              contentHtml += `<div class="message-image"><img src="/secure-file/${imagePath.split('/').pop()}?token=${currentUserData.post_key}" alt="Shared image" /></div>`;
+            }
           }
           
           // Add gif if present

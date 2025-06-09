@@ -31,9 +31,11 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Update the profile picture display function
   function displayProfilePic(picPath) {
-    // If pic starts with 'http' or '/', use as is, otherwise add '/'
-    if (!picPath) return '/uploads/default-avatar.png';
-    return picPath.startsWith('/') || picPath.startsWith('http') ? picPath : '/' + picPath;
+    if (!picPath) return '/secure-file/default-avatar.png?token=public';
+    
+    // Get just the filename
+    const filename = picPath.split('/').pop();
+    return `/secure-file/${filename}?token=public`;
   }
 
   // Handle authentication response

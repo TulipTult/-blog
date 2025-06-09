@@ -23,7 +23,8 @@
   <main class="profile-container">
     <div class="profile-header">
       <div class="profile-info">
-        <img src="/<%= user.profile_pic %>" alt="<%= user.username %>" class="profile-avatar">
+        <!-- Profile avatar is already using secure-file route -->
+        <img src="/secure-file/<%= user.profile_pic.split('/').pop() %>?token=public" alt="<%= user.username %>" class="profile-avatar">
         <div>
           <h2><%= user.username %></h2>
           <% if (user.role) { %>

@@ -27,6 +27,10 @@
         <div class="delete-key-section">
           <input type="password" id="categoryDeleteKey" placeholder="Enter post key" required>
           <button onclick="deleteCategoryWithKey('<%= category.id %>')" class="delete-btn">Delete Category</button>
+          <!-- Add hidden form for category deletion -->
+          <form id="deleteCategoryForm" method="POST" action="/delete-category/<%= category.id %>" style="display: none;">
+            <input type="hidden" id="deleteCategoryKeyInput" name="postKey">
+          </form>
         </div>
       <% } %>
     </div>
@@ -39,7 +43,7 @@
           <div class="post-header">
             <div class="post-author">
               <a href="/profile/<%= post.username %>">
-                <img src="<%= post.profile_pic ? '/' + post.profile_pic : '/uploads/default-avatar.png' %>" alt="<%= post.username %>" class="avatar">
+                <img src="<%= post.profile_pic ? '/secure-file/' + post.profile_pic.split('/').pop() + '?token=public' : '/secure-file/default-avatar.png?token=public' %>" alt="<%= post.username %>" class="avatar">
               </a>
               <a href="/profile/<%= post.username %>" class="username"><%= post.username %></a>
             </div>
@@ -48,8 +52,18 @@
           <h3><%= post.title %></h3>
           <div class="post-content"><%= post.content %></div>
           <% if (post.image_path) { %>
-            <div class="post-image">
-              <img src="<%= post.image_path %>" alt="Post image">
+            <% const isVideo = ['mp4', 'webm', 'ogg'].includes(post.image_path.split('.').pop().toLowerCase()); %>
+            <div class="post-media">
+              <% if (isVideo) { %>
+                <video controls width="100%">
+                  <source src="/secure-file/<%= post.image_path.split('/').pop() %>?token=public" type="video/<%= post.image_path.split('.').pop().toLowerCase() %>">
+                  Your browser does not support the video tag.
+                </video>
+              <% } else { %>
+                <div class="post-image">
+                  <img src="/secure-file/<%= post.image_path.split('/').pop() %>?token=public" alt="Post image">
+                </div>
+              <% } %>
             </div>
           <% } %>
           <div class="post-actions delete-control" style="display: none;">
@@ -93,8 +107,9 @@
       }
       
       if (confirm('Are you sure you want to delete this category? All posts will be moved to the Random category.')) {
-        // Redirect to the simplified delete URL with the key as a query parameter
-        window.location.href = `/delete-category/${categoryId}?key=${encodeURIComponent(key)}`;
+        // Use the form to submit a POST request instead of redirect
+        document.getElementById('deleteCategoryKeyInput').value = key;
+        document.getElementById('deleteCategoryForm').submit();
       }
     }
   </script>

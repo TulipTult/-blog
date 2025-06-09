@@ -37,8 +37,9 @@
       </div>
 
       <div class="form-group">
-        <label for="image">Upload Image</label>
-        <input type="file" id="image" name="image" accept="image/*">
+        <label for="image">Upload Image or Video</label>
+        <input type="file" id="image" name="image" accept="image/*,video/*">
+        <div id="media-preview" class="media-preview" style="display: none;"></div>
       </div>
       
       <button type="submit" class="submit-button">Create Category</button>
@@ -49,5 +50,44 @@
     <p>&copy; <%= new Date().getFullYear() %> TulipParty - wowowwowowwowow</p>
   </footer>
   <script src="/js/aeroEasterEgg.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const fileInput = document.getElementById('image');
+      const mediaPreview = document.getElementById('media-preview');
+      
+      fileInput.addEventListener('change', function() {
+        if (this.files && this.files[0]) {
+          const file = this.files[0];
+          const fileUrl = URL.createObjectURL(file);
+          
+          // Clear previous preview
+          mediaPreview.innerHTML = '';
+          
+          if (file.type.startsWith('image/')) {
+            // Create image preview
+            const img = document.createElement('img');
+            img.src = fileUrl;
+            img.style.maxWidth = '300px';
+            img.style.maxHeight = '200px';
+            mediaPreview.appendChild(img);
+          } else if (file.type.startsWith('video/')) {
+            // Create video preview
+            const video = document.createElement('video');
+            video.controls = true;
+            video.style.maxWidth = '300px';
+            
+            const source = document.createElement('source');
+            source.src = fileUrl;
+            source.type = file.type;
+            
+            video.appendChild(source);
+            mediaPreview.appendChild(video);
+          }
+          
+          mediaPreview.style.display = 'block';
+        }
+      });
+    });
+  </script>
 </body>
 </html>

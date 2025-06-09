@@ -67,9 +67,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function handleFiles(files) {
     const file = files[0]; // Only handle the first file
     
-    // Check if file is an image
-    if (!file.type.match('image.*')) {
-      alert('Please select an image file.');
+    // Check if file is an image or video
+    if (!file.type.match('image.*') && !file.type.match('video.*')) {
+      alert('Please select an image or video file.');
       return;
     }
     
