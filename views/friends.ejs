@@ -362,22 +362,40 @@
             const tempId = 'upload-' + Date.now();
             addMessageToChat('Uploading media...', false, new Date().toISOString(), null, null, tempId);
             
+            // Add file size check
+            if (file.size > 50 * 1024 * 1024) {
+              const uploadingElement = document.getElementById(tempId);
+              if (uploadingElement) {
+                uploadingElement.innerHTML = '<div class="message-text error">Error: File size exceeds 50MB limit</div>';
+              }
+              this.value = '';
+              return;
+            }
+            
             fetch('/upload-chat-media', {
               method: 'POST',
               body: formData
             })
             .then(response => {
               if (!response.ok) {
+                console.error('Upload response error:', response.status);
                 return response.text().then(text => {
                   try {
                     // Try to parse as JSON first
                     return JSON.parse(text);
                   } catch (e) {
-                    // Check if response contains file too large message
+                    // Check if response contains "File too large" text
                     if (text.includes('File too large')) {
-                      throw new Error('File size exceeds the 50MB limit. Please choose a smaller file.');
+                      return { 
+                        success: false, 
+                        message: 'File size exceeds the 50MB limit. Please choose a smaller file.'
+                      };
                     }
-                    throw new Error(text || 'Server error');
+                    // If not valid JSON, return a formatted error object
+                    return { 
+                      success: false, 
+                      message: 'Only images and videos are allowed.' 
+                    };
                   }
                 });
               }
@@ -390,7 +408,8 @@
                 if (uploadingElement) {
                   uploadingElement.remove();
                 }
-                // The socket event will display the message
+                
+                // The message will be displayed via socket event
               } else {
                 // Show error in place of uploading indicator
                 const uploadingElement = document.getElementById(tempId);
@@ -400,11 +419,11 @@
               }
             })
             .catch(err => {
-              console.error("Error uploading image:", err);
-              // Show error in place of uploading indicator
+              console.error("Error uploading media:", err);
+              // Show user-friendly error message - don't include stack trace
               const uploadingElement = document.getElementById(tempId);
               if (uploadingElement) {
-                uploadingElement.innerHTML = '<div class="message-text error">Error uploading image: ' + err.message + '</div>';
+                uploadingElement.innerHTML = '<div class="message-text error">Error uploading file: Only images and videos are allowed.</div>';
               }
             });
             

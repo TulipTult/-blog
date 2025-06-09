@@ -12,7 +12,7 @@
     <h1>TulipParty</h1>
     <div class="header-links">
       <a href="/chat" class="create-button">Live Chat</a>
-      <a href="/favorites" class="create-button"><i class="fas fa-star"></i> Favorites</a>
+      <a href="#" id="favorites-btn" class="create-button"><i class="fas fa-star"></i> Favorites</a>
       <a href="/friends" class="create-button"><i class="fas fa-user-friends"></i> Friends</a>
       <a href="/create-category" class="create-button">New Category</a>
       <a href="/create" class="create-button">New Post</a>
@@ -61,6 +61,17 @@
   <footer>
     <p>&copy; <%= new Date().getFullYear() %> TulipParty - wowowowowo</p>
   </footer>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('favorites-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        const postKey = prompt('Enter your post key to view your favorites:');
+        if (postKey) {
+          window.location.href = '/favorites?postKey=' + encodeURIComponent(postKey);
+        }
+      });
+    });
+  </script>
   <script src="/js/aeroEasterEgg.js"></script>
   <script src="/js/signupKeySequence.js"></script>
 </body>

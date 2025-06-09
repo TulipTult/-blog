@@ -60,7 +60,7 @@ const fileFilter = (req, file, cb) => {
     if (allowedExtensions.includes(fileExtension)) {
       cb(null, true);
     } else {
-      cb(new Error('Only supported image and video files are allowed'), false);
+      cb(new Error('Only supported image formats are allowed'), false);
     }
   } else if (file.mimetype.startsWith('video/')) {
     const allowedVideoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.avi'];
@@ -72,7 +72,7 @@ const fileFilter = (req, file, cb) => {
       cb(new Error('Only MP4, WebM, Ogg, MOV, and AVI video formats are supported'), false);
     }
   } else {
-    cb(new Error('Only image and video files are allowed'), false);
+    cb(new Error('Only images and videos are allowed'), false);
   }
 };
 
@@ -84,7 +84,7 @@ const upload = multer({
   }
 });
 
-// Add error handler for multer errors
+// Improve error handler for multer errors
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
@@ -92,6 +92,12 @@ app.use((err, req, res, next) => {
     }
     return res.status(400).json({ success: false, message: err.message });
   } else if (err) {
+    // Make all file-related errors more user friendly
+    if (err.message.includes('supported image') || 
+        err.message.includes('video formats') || 
+        err.message.includes('images and videos')) {
+      return res.status(400).json({ success: false, message: 'Only images and videos are allowed.' });
+    }
     return res.status(400).json({ success: false, message: err.message });
   }
   next();
@@ -1401,13 +1407,9 @@ app.post('/upload-chat-media', upload.single('media'), (req, res) => {
   try {
     console.log('Upload-chat-media endpoint called');
     
-    // Log request details for debugging
-    console.log('Request body keys:', Object.keys(req.body));
-    console.log('Request file:', req.file ? `Received ${req.file.mimetype}, size: ${req.file.size}` : 'No file received');
-    
     // If no file in request, return error as JSON
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No file was uploaded' });
+      return res.status(400).json({ success: false, message: 'No file was uploaded or the file type is not supported. Only images and videos are allowed.' });
     }
     
     const { senderKey, receiverKey } = req.body;
@@ -1457,8 +1459,14 @@ app.post('/upload-chat-media', upload.single('media'), (req, res) => {
     });
   } catch (error) {
     console.error('Error in upload-chat-media:', error);
-    // Ensure we return JSON even on errors
-    return res.status(500).json({ success: false, message: 'Server error processing upload' });
+    // Ensure we return a user-friendly error message
+    const errorMessage = error.message && (
+      error.message.includes('supported image') || 
+      error.message.includes('video formats') || 
+      error.message.includes('images and videos')
+    ) ? 'Only images and videos are allowed.' : 'Error processing upload. Please try again.';
+    
+    return res.status(500).json({ success: false, message: errorMessage });
   }
 });
 
