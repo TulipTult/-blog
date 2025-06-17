@@ -248,128 +248,50 @@ const db = new sqlite3.Database(dbPath, (err) => {
     UNIQUE(post_id, user_key)
   )`);
 
-  // Create reposts table
-  db.run(`CREATE TABLE IF NOT EXISTS reposts (
+  // Create badges table
+  db.run(`CREATE TABLE IF NOT EXISTS badges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    original_post_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    description TEXT NOT NULL
+  )`);
+  
+  // Create user_badges table
+  db.run(`CREATE TABLE IF NOT EXISTS user_badges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_key TEXT NOT NULL,
-    comment TEXT,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (original_post_id) REFERENCES posts (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_key) REFERENCES users (post_key)
+    badge_id INTEGER NOT NULL,
+    acquired_date TEXT NOT NULL,
+    FOREIGN KEY (user_key) REFERENCES users (post_key),
+    FOREIGN KEY (badge_id) REFERENCES badges (id),
+    UNIQUE(user_key, badge_id)
   )`);
 
-  // Create friends table
-  db.run(`CREATE TABLE IF NOT EXISTS friends (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_key_1 TEXT NOT NULL,
-    user_key_2 TEXT NOT NULL,
-    status TEXT DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (user_key_1) REFERENCES users (post_key),
-    FOREIGN KEY (user_key_2) REFERENCES users (post_key),
-    UNIQUE(user_key_1, user_key_2)
-  )`);
-
-  // Create friend_messages table
-  db.run(`CREATE TABLE IF NOT EXISTS friend_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sender_key TEXT NOT NULL,
-    receiver_key TEXT NOT NULL,
-    message TEXT NOT NULL,
-    image_path TEXT,
-    gif_url TEXT,
-    created_at TEXT NOT NULL,
-    read_at TEXT,
-    FOREIGN KEY (sender_key) REFERENCES users (post_key),
-    FOREIGN KEY (receiver_key) REFERENCES users (post_key)
-  )`);
-  
-  // Update strategy for posts table
-  db.all("PRAGMA table_info(posts)", [], (err, columns) => {
-    if (err) {
-      console.error("Error checking posts table:", err.message);
-    }
-    // Check if original posts table exists
-    db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='posts'", [], (err, table) => {
-      if (table) {
-        // Check if category_id column exists
-        const hasColumn = columns && columns.some(col => col.name === 'category_id');
-        if (!hasColumn) {
-          console.log("Migrating posts table to new schema...");
-          // Create backup table using sequential callbacks to avoid race conditions
-          db.run("ALTER TABLE posts RENAME TO posts_old", function(err) {
-            if (err) {
-              console.error("Error renaming posts table:", err.message);
-              return;
-            }
-            // Create new table with correct schema after renaming is successful
-            db.run(`CREATE TABLE posts (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              title TEXT NOT NULL,
-              content TEXT NOT NULL,
-              user_key TEXT NOT NULL,
-              category_id INTEGER DEFAULT 1,
-              date TEXT NOT NULL,
-              image_path TEXT,
-              FOREIGN KEY (user_key) REFERENCES users (post_key),
-              FOREIGN KEY (category_id) REFERENCES categories (id)
-            )`, function(err) {
-              if (err) {
-                console.error("Error creating new posts table:", err.message);
-                return;
-              }
-              // Copy data from old to new after table is created
-              db.run(`INSERT INTO posts(id, title, content, user_key, date, image_path, category_id)
-                      SELECT id, title, content, user_key, date, image_path, 1 FROM posts_old`, function(err) {
-                if (err) {
-                  console.error("Error copying data to new posts table:", err.message);
-                  return;
-                }
-                console.log("Migration completed successfully.");
-              });
-            });
-          });
-        }
-      } else {
-        // If posts table doesn't exist, create it
-        db.run(`CREATE TABLE posts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          title TEXT NOT NULL,
-          content TEXT NOT NULL,
-          user_key TEXT NOT NULL,
-          category_id INTEGER DEFAULT 1,
-          date TEXT NOT NULL,
-          image_path TEXT,
-          FOREIGN KEY (user_key) REFERENCES users (post_key),
-          FOREIGN KEY (category_id) REFERENCES categories (id)
-        )`);
-      }
-    });
-  });
-
-  // Insert the initial user if it doesn't exist
-  db.get("SELECT * FROM users WHERE post_key = ?", ["pibble_power3"], (err, row) => {
-    if (!row) {
-      db.run("INSERT INTO users (post_key, username, profile_pic, role, bio) VALUES (?, ?, ?, ?, ?)", 
-        ["pibble_power3", "Tulip", "secure-uploads/default-avatar.png", 
-        "Agarthas Admin", "yk ur own classic pibble lover here i love pibbles so much. drink raw milk #saveeurope"]);
-    } else if (!row.role || !row.bio) {
-      // Update existing user with role and bio if they're missing
-      db.run("UPDATE users SET role = ?, bio = ? WHERE post_key = ?", 
-        ["Agarthas Admin", "yk ur own classic pibble lover here i love pibbles so much. drink raw milk #saveeurope", "pibble_power3"]);
+  // Insert default badges if they don't exist
+  db.get("SELECT * FROM badges WHERE name = 'joinedTP'", (err, badge) => {
+    if (!badge) {
+      db.run("INSERT INTO badges (name, filename, description) VALUES (?, ?, ?)", 
+        ['joinedTP', 'joinedTP.png', 'Badge for Joining TulipParty.']);
     }
   });
   
-  // Insert the default "random" category if it doesn't exist
-  db.get("SELECT * FROM categories WHERE id = 1", (err, row) => {
-    if (!row) {
-      const date = moment().format('YYYY-MM-DD HH:mm:ss');
-      db.run("INSERT INTO categories (id, name, description, created_by, created_at) VALUES (?, ?, ?, ?, ?)", 
-        [1, "random", "Random posts that don't belong anywhere else", "pibble_power3", date]);
+  db.get("SELECT * FROM badges WHERE name = 'contributerTP'", (err, badge) => {
+    if (!badge) {
+      db.run("INSERT INTO badges (name, filename, description) VALUES (?, ?, ?)", 
+        ['contributerTP', 'contributerTP.png', 'Contributed to TulipParty.']);
     }
   });
+  
+  db.get("SELECT * FROM badges WHERE name = 'coolTP'", (err, badge) => {
+    if (!badge) {
+      db.run("INSERT INTO badges (name, filename, description) VALUES (?, ?, ?)", 
+        ['coolTP', 'coolTP.png', 'Badge given only for cool ppl ;3.']);
+    }
+  });
+
+  // Add code to automatically assign joinedTP badge to new users in the signup route
+  
+  // ...existing code...
 });
 
 // Ensure default avatar exists
@@ -660,6 +582,15 @@ app.post('/signup', upload.single('profilePic'), (req, res) => {
               bio
             });
           }
+          
+          // Assign the joinedTP badge to the new user
+          db.get("SELECT id FROM badges WHERE name = 'joinedTP'", (err, badge) => {
+            if (badge) {
+              const date = moment().format('YYYY-MM-DD HH:mm:ss');
+              db.run("INSERT INTO user_badges (user_key, badge_id, acquired_date) VALUES (?, ?, ?)",
+                [postKey, badge.id, date]);
+            }
+          });
           
           // Success! Render success message
           res.render('signup', { 
@@ -1612,7 +1543,7 @@ app.get('/secure-file/:filename', (req, res) => {
   // Serve the file
   res.sendFile(filePath);
 });
-
+// Helper function to validate file access tokens });
 // Helper function to validate file access tokens
 function validateFileToken(token, filename) {
   // Simple implementation - in a real app, this would check against a database
@@ -1624,6 +1555,69 @@ function validateFileToken(token, filename) {
     });
   });
 }
+
+// Add badge admin API endpoint
+app.post('/api/add-badge', bodyParser.json(), (req, res) => {
+  const { adminKey, username, badgeName } = req.body;
+  
+  // Validate admin key
+  const validAdminKeys = ['pibble_power3', '1pibble'];
+  if (!validAdminKeys.includes(adminKey)) {
+    return res.status(403).json({ success: false, message: 'Invalid admin key' });
+  }
+  
+  // Find user by username
+  db.get("SELECT * FROM users WHERE username = ?", [username], (err, user) => {
+    if (err) {
+      console.error("Database error finding user:", err);
+      return res.status(500).json({ success: false, message: 'Database error' });
+    }
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    
+    // Find badge by name
+    db.get("SELECT * FROM badges WHERE name = ?", [badgeName], (err, badge) => {
+      if (err) {
+        console.error("Database error finding badge:", err);
+        return res.status(500).json({ success: false, message: 'Database error' });
+      }
+      
+      if (!badge) {
+        return res.status(404).json({ success: false, message: 'Badge not found' });
+      }
+      
+      // Check if user already has this badge
+      db.get("SELECT * FROM user_badges WHERE user_key = ? AND badge_id = ?", 
+        [user.post_key, badge.id], (err, userBadge) => {
+        if (err) {
+          console.error("Database error checking user badge:", err);
+          return res.status(500).json({ success: false, message: 'Database error' });
+        }
+        
+        if (userBadge) {
+          return res.json({ success: false, message: 'User already has this badge' });
+        }
+        
+        // Add badge to user
+        const date = moment().format('YYYY-MM-DD HH:mm:ss');
+        db.run("INSERT INTO user_badges (user_key, badge_id, acquired_date) VALUES (?, ?, ?)",
+          [user.post_key, badge.id, date], function(err) {
+          if (err) {
+            console.error("Database error adding badge:", err);
+            return res.status(500).json({ success: false, message: 'Failed to add badge' });
+          }
+          
+          return res.json({ 
+            success: true, 
+            message: `Badge '${badge.name}' added to ${username} successfully!` 
+          });
+        });
+      });
+    });
+  });
+});
 
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

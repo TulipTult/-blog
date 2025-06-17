@@ -6,6 +6,7 @@
   <title><%= user.username %>'s Profile - TulipParty</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="stylesheet" href="/css/aero.css">
+  <link rel="stylesheet" href="/css/badges.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <style id="custom-profile-style"></style>
 </head>
@@ -43,6 +44,22 @@
           <p><%= user.bio %></p>
         </div>
       <% } %>
+      
+      <!-- Add User Badges Section -->
+      <div class="user-badges">
+        <h3>Badges</h3>
+        <div class="badges-container">
+          <% if (badges && badges.length > 0) { %>
+            <% badges.forEach(badge => { %>
+              <div class="badge-item" data-description="<%= badge.description %> <%= badge.acquired_date %>">
+                <img src="/badges/<%= badge.filename %>" alt="<%= badge.name %>" >
+              </div>
+            <% }); %>
+          <% } else { %>
+            <p class="no-badges">No badges yet.</p>
+          <% } %>
+        </div>
+      </div>
     </div>
     
     <div id="custom-profile-sections" class="custom-profile-section">
@@ -209,5 +226,6 @@
       });
     });
   </script>
+  <script src="/js/badgeAdmin.js"></script>
 </body>
 </html>

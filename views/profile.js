@@ -79,7 +79,19 @@ router.get('/profile/:username', (req, res) => {
         posts = [];
       }
       
-      res.render('profile', { user, posts });
+      // Fetch user badges
+      db.all(`SELECT badges.*, user_badges.acquired_date 
+              FROM badges
+              JOIN user_badges ON badges.id = user_badges.badge_id
+              WHERE user_badges.user_key = ?
+              ORDER BY user_badges.acquired_date ASC`, [user.post_key], (err, badges) => {
+        if (err) {
+          console.error("Error fetching user's badges:", err.message);
+          badges = [];
+        }
+        
+        res.render('profile', { user, posts, badges });
+      });
     });
   });
 });
