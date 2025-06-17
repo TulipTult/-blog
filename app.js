@@ -588,7 +588,15 @@ app.post('/signup', upload.single('profilePic'), (req, res) => {
             if (badge) {
               const date = moment().format('YYYY-MM-DD HH:mm:ss');
               db.run("INSERT INTO user_badges (user_key, badge_id, acquired_date) VALUES (?, ?, ?)",
-                [postKey, badge.id, date]);
+                [postKey, badge.id, date], (err) => {
+                  if (err) {
+                    console.error("Error assigning joinedTP badge:", err.message);
+                  } else {
+                    console.log(`JoinedTP badge assigned to new user: ${username}`);
+                  }
+                });
+            } else {
+              console.error("JoinedTP badge not found in database");
             }
           });
           
